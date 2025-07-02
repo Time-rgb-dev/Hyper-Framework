@@ -1,9 +1,9 @@
 [gd_scene load_steps=27 format=4 uid="uid://f4cgq5ixf1rn"]
 
-[ext_resource type="Script" uid="uid://cunhx41o7se2j" path="res://Gameplay Scripts/Player.gd" id="1_e80uo"]
+[ext_resource type="Script" uid="uid://cunhx41o7se2j" path="res://gameplay scripts/Player.gd" id="1_e80uo"]
 [ext_resource type="Texture2D" uid="uid://bn7xp6ckci087" path="res://objects/Player/sonicmodel/Sonic v2 tex.png" id="2_e80uo"]
-[ext_resource type="Script" uid="uid://crul3wk1oiy5n" path="res://Gameplay Scripts/PlayerRotate.gd" id="3_e80uo"]
-[ext_resource type="Script" uid="uid://bxfqahrp8b7fi" path="res://Gameplay Scripts/CameraRotate.gd" id="3_kne1u"]
+[ext_resource type="Script" uid="uid://crul3wk1oiy5n" path="res://gameplay scripts/PlayerRotate.gd" id="3_e80uo"]
+[ext_resource type="Script" uid="uid://bxfqahrp8b7fi" path="res://gameplay scripts/CameraRotate.gd" id="3_kne1u"]
 [ext_resource type="AnimationLibrary" uid="uid://3s1ydgfoo3ep" path="res://objects/Player/sonicmodel/animations/SonicAnimations.tres" id="4_cxr5p"]
 [ext_resource type="Script" uid="uid://nemw4flk24d4" path="res://objects/Player/label_3d.gd" id="6_fca01"]
 [ext_resource type="Script" uid="uid://bwrvku1wuvvtq" path="res://objects/Player/RayTilt.gd" id="7_b20bf"]
