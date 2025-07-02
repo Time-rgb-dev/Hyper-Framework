@@ -26,3 +26,4 @@ mesh = ExtResource("2_tipjx")
 surface_material_override/0 = SubResource("StandardMaterial3D_s1jcu")
 
 [node name="AudioStreamPlayer3D" type="AudioStreamPlayer3D" parent="."]
+visible = false
