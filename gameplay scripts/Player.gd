@@ -40,6 +40,9 @@ extends CharacterBody3D
 
 @export var ROLLTYPE = 1
 
+@export var BUTTON_ROLL: StringName = "input_rt"
+@export var BUTTON_LEFT: StringName
+
 # State
 var gsp: float = 0.0
 var abs_gsp: float = 0.0
@@ -78,15 +81,14 @@ func update_ground_info():
 		
 		# Align the raycast rotation with the model
 		var forward: Vector3 = -model_default.transform.basis.z.normalized()
-		var up: Vector3 = model_default.transform.basis.y.normalized()
 		ground_ray.look_at(ground_ray.global_transform.origin - forward)
 
 func _physics_process(delta: float) -> void:
 	update_ground_info()
 	var floor_normal: Vector3 = get_floor_normal()
-	var angle_from_up: float = acos(floor_normal.dot(Vector3.UP))
+	#var angle_from_up: float = acos(floor_normal.dot(Vector3.UP))
 	var on_floor: bool = is_on_floor() #and angle_from_up < floor_max_angle
-	floor_max_angle = deg_to_rad((angle_from_up) + 180)
+	#floor_max_angle = deg_to_rad((angle_from_up) + 180)
 
 	var slope_normal: Vector3 = get_floor_normal() if on_floor else Vector3.UP
 	var slope_angle: float = acos(slope_normal.dot(Vector3.UP))
@@ -105,8 +107,8 @@ func _physics_process(delta: float) -> void:
 	
 	if axis.length() > 0.001:
 		axis = axis.normalized()
-		var rotation: Quaternion = Quaternion(axis, angle)
-		$CollisionShape3D2.rotation = rotation.get_euler()
+		var quat_rotate: Quaternion = Quaternion(axis, angle)
+		$CollisionShape3D2.rotation = quat_rotate.get_euler()
 	else:
 		# Floor normal and up vector are the same (flat ground)
 		$CollisionShape3D2.rotation = Vector3.ZERO

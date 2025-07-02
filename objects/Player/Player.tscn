@@ -960,7 +960,6 @@ top_level = true
 input_capture_on_drag = true
 floor_stop_on_slope = false
 floor_block_on_wall = false
-floor_max_angle = 3.14159
 floor_snap_length = 10.35
 script = ExtResource("1_e80uo")
 
@@ -1719,7 +1718,7 @@ player = NodePath("..")
 [node name="GroundRay" type="RayCast3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.58617e-10, -0.386654, 0)
 visibility_parent = NodePath("../Label3D")
-hit_from_inside = true
+target_position = Vector3(0, -5, 0)
 collide_with_areas = true
 debug_shape_custom_color = Color(0.25, 0.525, 1, 1)
 debug_shape_thickness = 5
