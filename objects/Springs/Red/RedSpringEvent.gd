@@ -1,6 +1,6 @@
 extends Area3D
 
-@export var SPRING_LAUNCH_SPEED := 50.0  # Adjust this as needed
+var SPRING_LAUNCH_SPEED := 50.0  # Adjust this as needed
 
 @export var target_name: String = "Player"
 

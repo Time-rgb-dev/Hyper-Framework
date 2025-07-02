@@ -1,59 +1,81 @@
-[gd_scene load_steps=8 format=3 uid="uid://c1m30chim3x0k"]
+[gd_scene load_steps=9 format=3 uid="uid://c1m30chim3x0k"]
 
-[ext_resource type="Texture2D" uid="uid://tskx4aigkh86" path="res://Terrain/k1_umi03.png" id="1_5vrlp"]
 [ext_resource type="PackedScene" uid="uid://f4cgq5ixf1rn" path="res://objects/Player/Player.tscn" id="1_rqpk7"]
+[ext_resource type="PackedScene" uid="uid://cbjhtwtkrilqv" path="res://objects/Springs/Yellow/YellowSpring.tscn" id="3_5vrlp"]
+[ext_resource type="PackedScene" uid="uid://dmbior770cd38" path="res://objects/Platform/Platform.tscn" id="4_jnrql"]
 [ext_resource type="PackedScene" uid="uid://b7xs4s2u8lcqj" path="res://Terrain/Stage1Data.tscn" id="5_bqxtn"]
 
-[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_jnrql"]
-panorama = ExtResource("1_5vrlp")
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_5vrlp"]
+sky_top_color = Color(0.533862, 0.641755, 0.82804, 1)
+sky_horizon_color = Color(0.907782, 0.539806, 0.485528, 1)
+ground_bottom_color = Color(0.905882, 0.541176, 0.486275, 1)
+ground_horizon_color = Color(0.905882, 0.541176, 0.486275, 1)
 
-[sub_resource type="Sky" id="Sky_5vrlp"]
-sky_material = SubResource("PanoramaSkyMaterial_jnrql")
+[sub_resource type="Sky" id="Sky_jnrql"]
+sky_material = SubResource("ProceduralSkyMaterial_5vrlp")
 
-[sub_resource type="Environment" id="Environment_jnrql"]
+[sub_resource type="Environment" id="Environment_5vrlp"]
 background_mode = 2
-background_color = Color(1, 1, 1, 1)
-sky = SubResource("Sky_5vrlp")
+background_energy_multiplier = 1.05
+sky = SubResource("Sky_jnrql")
 ambient_light_source = 3
-ambient_light_color = Color(0.72, 0.72, 0.72, 1)
+ambient_light_color = Color(0.830335, 0.830335, 0.830335, 1)
+ambient_light_energy = 1.51
 reflected_light_source = 2
-tonemap_mode = 1
-volumetric_fog_enabled = true
-volumetric_fog_density = 0.0046
-volumetric_fog_albedo = Color(0.56, 0.875333, 1, 1)
-volumetric_fog_emission = Color(0.12, 0.12, 0.12, 1)
-volumetric_fog_emission_energy = 22.79
-volumetric_fog_length = 6.45
-volumetric_fog_detail_spread = 3.82368
-volumetric_fog_sky_affect = 0.0
+tonemap_mode = 2
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_5vrlp"]
 auto_exposure_enabled = true
-dof_blur_far_enabled = true
-dof_blur_far_distance = 737.59
-dof_blur_far_transition = 976.34
+dof_blur_far_distance = 46.84
 
 [node name="Node3D" type="Node3D"]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_jnrql")
+environment = SubResource("Environment_5vrlp")
 camera_attributes = SubResource("CameraAttributesPractical_5vrlp")
 
 [node name="Stage1Data" parent="WorldEnvironment" instance=ExtResource("5_bqxtn")]
 transform = Transform3D(-1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, -1, 0.000358554, 0, -4101.38)
 
 [node name="Player" parent="WorldEnvironment" instance=ExtResource("1_rqpk7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.265651, 80.8753, -3599.28)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.252038, 36.6109, -4272.94)
 slide_on_ceiling = false
 wall_min_slide_angle = 0.469494
 floor_block_on_wall = true
 floor_snap_length = 10.4
 platform_on_leave = 1
+BUTTON_ROLL = &"input_b"
+
+[node name="YellowSpring" parent="WorldEnvironment" instance=ExtResource("3_5vrlp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0919156, -0.416574, -3112.76)
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="WorldEnvironment"]
-transform = Transform3D(0.0383878, -0.865387, 0.499632, -1.00763e-09, 0.5, 0.866025, -0.999263, -0.0332448, 0.0191939, 95.8321, 166.108, 3.6815)
-light_color = Color(0.98, 0.98, 0.98, 1)
-light_energy = 3.262
-light_indirect_energy = 1.404
-shadow_enabled = true
-directional_shadow_blend_splits = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3142.31, 2173.4, -3592.32)
+light_color = Color(1, 0.78, 0.78, 1)
+light_energy = 2.604
+light_indirect_energy = 1.065
+light_angular_distance = 19.68
+shadow_bias = 0.517
+shadow_transmittance_bias = 0.505
+
+[node name="YellowSpring2" parent="WorldEnvironment" instance=ExtResource("3_5vrlp")]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, -0.364754, 9.12387, -3744.54)
+SPRING_LAUNCH_SPEED = 75.0
+
+[node name="YellowSpring" parent="." instance=ExtResource("3_5vrlp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.54229, 77.3553, -3574.42)
+
+[node name="YellowSpring2" parent="." instance=ExtResource("3_5vrlp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.2312, 78.5161, -3578.29)
+
+[node name="YellowSpring3" parent="." instance=ExtResource("3_5vrlp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.30081, -0.442583, -3112.81)
+
+[node name="YellowSpring4" parent="." instance=ExtResource("3_5vrlp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.49259, -0.442583, -3112.81)
+
+[node name="Platform" parent="." instance=ExtResource("4_jnrql")]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0.288134, 74.8095, -3625.37)
+point_a = Vector3(0.288, 51.829, -3668.15)
+point_b = Vector3(0.288, 74.809, -3625.37)
+speed = 0.5

@@ -19,8 +19,8 @@ extends CharacterBody3D
 @export var TOPACC: float = 35.0
 @export var MAXSPD: float = 200.0
 
-@export var JUMP_VELOCITY: float = 40.0
-@export var GRAVITY: Vector3 = Vector3.DOWN * 45.0
+@export var JUMP_VELOCITY: float = 45.0
+@export var GRAVITY: Vector3 = Vector3.DOWN * 75.0
 @export var GRAVITY_NORMAL: Vector3 = Vector3.UP
 
 @export var SLOPE_DOWNHILL_BOOST: float = 100.0
@@ -30,13 +30,13 @@ extends CharacterBody3D
 
 @export var MIN_GSP_UPHILL: float = 0.0
 
-@export var AIR_ACC: float = 150.0
-@export var AIR_CONTROL: float = 10.0
+@export var AIR_ACC: float = 22.20895
+@export var AIR_CONTROL: float = 5.0
 
 @export var TURN_RESISTANCE_FACTOR: float = 5.0
 @export var WALL_THRESHOLD:float = - 0.9
 
-@export var SPINDASH_CHARGE_RATE: float = 25.0
+@export var SPINDASH_CHARGE_RATE: float = 50.0
 @export var SPINDASH_MAX: float = 75.0
 @export var SPINDASH_RELEASE_MULT = 1
 @export var SPINDASH_SLOWDOWN_THRESHOLD: float = 1.5
@@ -60,6 +60,7 @@ var GROUNDED: bool = true
 var SPINNING: bool = false
 var CROUCHING: bool = false
 var JUMPING: bool  = false
+var DROPDASHING: bool = false
 var SPINDASHING: bool = false
 var SKIDDING: bool = false
 
@@ -140,8 +141,10 @@ func _physics_process(delta: float) -> void:
 	var cam_forward: Vector3 = -cam_basis.z.normalized()
 	var cam_right: Vector3 = cam_basis.x.normalized()
 	
+	
 	var input_dir: Vector3 = Vector3(cam_forward * input.y + cam_right * input.x).normalized()
 	var has_input: bool = not input_dir.is_zero_approx() if not input.is_zero_approx() else false
+	var direction = input_dir.normalized() if has_input else Vector3.ZERO
 	
 	# Predict intended direction if no new move_dir yet
 	if has_input and move_dir.is_zero_approx():
@@ -152,7 +155,7 @@ func _physics_process(delta: float) -> void:
 	# Detect skidding
 	if GROUNDED and not SPINNING and not CROUCHING and has_input:
 		if move_dir != Vector3.ZERO:
-			if move_dot <= -0.9 and abs_gsp > 20:
+			if move_dot <= -0.16 and abs_gsp > 15:
 				SKIDDING = true
 			elif move_dot > 0.25:
 				SKIDDING = false
@@ -240,6 +243,7 @@ func _physics_process(delta: float) -> void:
 		SPINNING = true
 
 	else:
+		
 # Handle rolling logic based on ROLLTYPE
 		if GROUNDED and not SPINDASHING:
 			if ROLLTYPE == 0:
@@ -261,7 +265,7 @@ func _physics_process(delta: float) -> void:
 	if not SPINDASHING and not CROUCHING and not SKIDDING: 
 		if has_input:
 			# Rotate toward new input direction
-			var turn_speed: float = clampf(1.0 - (absf(accel_speed) / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0)
+			var turn_speed = clamp(1.0 - (abs(gsp) / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0)
 			
 			move_dir = move_dir.slerp(input_dir, turn_speed).normalized()
 			#recompute this
@@ -313,43 +317,31 @@ func _physics_process(delta: float) -> void:
 		# Airborne or spindash - let slope speed decay
 		slope_speed = move_toward(slope_speed, 0, DEC * delta)
 	
+	
+	# Air control
+	if not GROUNDED:
+		if direction.length() > 0.01:
+			# Smoothly rotate toward input direction
+			var turn_speed = clamp(1.0 - (abs(accel_speed) / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0) * 0.50
+			move_dir = move_dir.slerp(direction.normalized(), turn_speed)
+
+			var dot = move_dir.normalized().dot(direction.normalized())
+
+			if dot > 0:
+				accel_speed = clamp(accel_speed + AIR_ACC * delta, -TOPACC, TOPACC)
+			elif dot < 0:
+				accel_speed = clamp(accel_speed - AIR_ACC * 0.5 * delta, -TOPACC, TOPACC)
+		else:
+			# No input — optionally reduce accel_speed slowly
+			accel_speed = move_toward(accel_speed, 0.0, FRC)
+			
+			
 	# Total movement speed
 	gsp = clampf(accel_speed + slope_speed, -MAXSPD, MAXSPD)
 	abs_gsp = absf(gsp)
 	
-	# Air control (Sonic-style)
-	if not GROUNDED:
-		var current_h_velocity: Vector3 = Vector3(velocity.x, 0, velocity.z)
-		var current_speed: float = current_h_velocity.length()
-		var current_h_dir: Vector3 = current_h_velocity.normalized() if current_speed > 0.01 else Vector3.ZERO
-		
-		if has_input:
-			if current_h_dir.dot(input_dir) > 0:
-				# Accelerate in air toward input direction
-				var target_speed: float = clampf(current_speed + AIR_ACC * delta, 0, MAXSPD)
-				var desired_velocity: Vector3 = input_dir * target_speed
-				
-				# Smoothly adjust velocity toward desired velocity
-				velocity.x = lerpf(velocity.x, desired_velocity.x, AIR_CONTROL * delta)
-				velocity.z = lerpf(velocity.z, desired_velocity.z, AIR_CONTROL * delta)
-			else:
-				# Opposite or perpendicular input — slow down gently, allow slight steering
-				var target_speed: float = maxf(current_speed - AIR_ACC * 0.5 * delta, 0)
-				
-				# Blend slightly toward input direction to allow some control
-				var blended_dir: Vector3 = current_h_dir.slerp(input_dir, 0.1) # small influence
-				
-				var desired_velocity: Vector3 = blended_dir * target_speed
-				
-				velocity.x = lerpf(velocity.x, desired_velocity.x, AIR_CONTROL * delta)
-				velocity.z = lerpf(velocity.z, desired_velocity.z, AIR_CONTROL * delta)
-		else:
-			# No input, maintain current horizontal velocity (or decay slightly if desired)
-			velocity.x = lerpf(velocity.x, current_h_velocity.x, AIR_CONTROL * 0.1 * delta)
-			velocity.z = lerpf(velocity.z, current_h_velocity.z, AIR_CONTROL * 0.1 * delta)
-	
 	# --- Apply velocity from gsp and move_dir ---
-	if GROUNDED:
+	if not SPINDASHING:
 		var move_vector = move_dir * gsp
 		velocity.x = move_vector.x
 		velocity.z = move_vector.z
@@ -380,7 +372,7 @@ func _physics_process(delta: float) -> void:
 			ground_ray.global_rotation = Vector3.ZERO
 			ground_ray.look_at(global_transform.origin + ground_ray.target_position, up_direction)
 
-	spinball_mesh.visible = SPINNING
+	spinball_mesh.visible = SPINNING and not DROPDASHING
 
 	# --- Detect Spin State Transitions ---
 	if GROUNDED:
