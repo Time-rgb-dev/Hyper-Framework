@@ -2,7 +2,8 @@ extends CharacterBody3D
 
 @onready var anim_player: AnimationPlayer = $CollisionShape3D2/DefaultModel/GeneralSkeleton/AnimationPlayer
 @onready var model_default = $CollisionShape3D2/DefaultModel
-@onready var model_spin = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
+@onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
+@onready var model_rotation_base: Node3D = $CollisionShape3D2
 @onready var camera = $TwistPivot/PitchPivot/Camera3D
 @onready var ground_ray = $GroundRay
 @onready var twist = $TwistPivot
@@ -20,6 +21,7 @@ extends CharacterBody3D
 
 @export var JUMP_VELOCITY: float = 40.0
 @export var GRAVITY: Vector3 = Vector3.DOWN * 45.0
+@export var GRAVITY_NORMAL: Vector3 = Vector3.UP
 
 @export var SLOPE_DOWNHILL_BOOST: float = 100.0
 @export var SLOPE_UPHILL_SLOW: float    = 50.0
@@ -32,6 +34,7 @@ extends CharacterBody3D
 @export var AIR_CONTROL: float = 10.0
 
 @export var TURN_RESISTANCE_FACTOR: float = 5.0
+@export var WALL_THRESHOLD:float = - 0.9
 
 @export var SPINDASH_CHARGE_RATE: float = 25.0
 @export var SPINDASH_MAX: float = 75.0
@@ -49,11 +52,13 @@ var abs_gsp: float = 0.0
 var move_dir = Vector3.ZERO
 var last_input_dir = Vector3.ZERO
 var GROUNDED: bool = true
+
 var SPINNING: bool = false
 var CROUCHING: bool = false
 var JUMPING: bool  = false
 var SPINDASHING: bool = false
 var SKIDDING: bool = false
+
 var spindash_charge: float = 0.0
 var roll_toggle_lock: bool = false
 
@@ -62,7 +67,7 @@ var prev_spinning: bool = false
 var accel_speed: float = 0.0
 var slope_speed: float = 0.0
 
-var terrain_normal: Vector3 = Vector3.UP
+var slope_normal: Vector3  = Vector3.UP
 var terrain_up_smooth: Vector3 = Vector3.UP
 var ground_distance: float = INF
 
@@ -72,11 +77,11 @@ func get_jump_vector(normal: Vector3) -> Vector3:
 func update_ground_info():
 	if ground_ray.is_colliding():
 		GROUNDED = true
-		terrain_normal = ground_ray.get_collision_normal()
+		slope_normal = ground_ray.get_collision_normal()
 		ground_distance = ground_ray.global_transform.origin.distance_to(ground_ray.get_collision_point())
 	else:
 		GROUNDED = false
-		terrain_normal = Vector3.UP
+		slope_normal = Vector3.UP
 		ground_distance = INF
 		
 		# Align the raycast rotation with the model
@@ -85,34 +90,24 @@ func update_ground_info():
 
 func _physics_process(delta: float) -> void:
 	update_ground_info()
-	var floor_normal: Vector3 = get_floor_normal()
-	#var angle_from_up: float = acos(floor_normal.dot(Vector3.UP))
 	var on_floor: bool = is_on_floor() #and angle_from_up < floor_max_angle
-	#floor_max_angle = deg_to_rad((angle_from_up) + 180)
-
-	var slope_normal: Vector3 = get_floor_normal() if on_floor else Vector3.UP
-	var slope_angle: float = acos(slope_normal.dot(Vector3.UP))
 	
-	# Calculate rotation that aligns body "down" with floor normal
-	var target_up: Vector3 = floor_normal
-	var current_up: Vector3 = Vector3.UP
-
-	var axis = current_up.cross(target_up)
-	var angle = acos(current_up.dot(target_up))
-
+	var slope_angle: float = acos(slope_normal.dot(GRAVITY_NORMAL))
+	
 	if on_floor:
 		var platform: KinematicCollision3D = get_last_slide_collision()
 		if platform and platform.has_method("get_velocity"):
 			velocity += platform.get_velocity()
 	
-	if axis.length() > 0.001:
-		axis = axis.normalized()
-		var quat_rotate: Quaternion = Quaternion(axis, angle)
-		$CollisionShape3D2.rotation = quat_rotate.get_euler()
+	# Calculate rotation that aligns body "down" with floor normal
+	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
+	
+	if not axis.is_zero_approx():
+		var quat_rotate: Quaternion = Quaternion(axis, slope_angle)
+		model_rotation_base.rotation = quat_rotate.get_euler()
 	else:
 		# Floor normal and up vector are the same (flat ground)
-		$CollisionShape3D2.rotation = Vector3.ZERO
-	
+		model_rotation_base.rotation = Vector3.ZERO
 	
 	# Update grounded state and gravity
 	if on_floor and not GROUNDED:
@@ -131,55 +126,56 @@ func _physics_process(delta: float) -> void:
 		var wall_normal: Vector3 = get_wall_normal()
 		var wall_dot: float = forward.dot(wall_normal)
 
-		if wall_dot < -0.9:  # Almost head-on into wall
+		if wall_dot < WALL_THRESHOLD:  # Almost head-on into wall
 			gsp = 0.0
 			abs_gsp = 0.0
 			accel_speed = 0.0
 			slope_speed = 0.0
-# Input
-	var input: Vector2 = Input.get_vector("input_left", "input_right", "input_forward", "input_back")
+	
+	# Input
+	var input: Vector2 = Input.get_vector("input_left", "input_right", "input_back", "input_forward")
+	
 	var cam_basis: Basis = camera.global_transform.basis
 	var cam_forward: Vector3 = -cam_basis.z.normalized()
 	var cam_right: Vector3 = cam_basis.x.normalized()
-
-	var input_dir: Vector3 = (cam_forward * -input.y + cam_right * input.x)
-	var has_input: bool = input.length() > 0.01
-	var direction: Vector3 = input_dir.normalized() if has_input else Vector3.ZERO
-
-# Predict intended direction if no new move_dir yet
-	if has_input:
-		if move_dir == Vector3.ZERO:
-			move_dir = direction
+	
+	var input_dir: Vector3 = Vector3(cam_forward * input.y + cam_right * input.x).normalized()
+	var has_input: bool = not input_dir.is_zero_approx() if not input.is_zero_approx() else false
+	
+	# Predict intended direction if no new move_dir yet
+	if has_input and move_dir.is_zero_approx():
+		move_dir = input_dir
+	
+	var move_dot: float = move_dir.normalized().dot(input_dir)
 	
 	# Detect skidding
 	if GROUNDED and not SPINNING and not CROUCHING and has_input:
 		if move_dir != Vector3.ZERO:
-			var dot = move_dir.normalized().dot(direction)
-			if dot <= -0.9 and abs_gsp > 20:
+			if move_dot <= -0.9 and abs_gsp > 20:
 				SKIDDING = true
-			elif dot > 0.25:
+			elif move_dot > 0.25:
 				SKIDDING = false
 	
 	# Stop skidding if speed is very low
 	if SKIDDING and abs_gsp < 1.0:
 		SKIDDING = false
 	
-	if has_input:
-		last_input_dir = direction
+	if has_input: #This... isn't doing anything right now. It's too early.
+		last_input_dir = input_dir
 	else:
-		var current_friction = SPIN_FRC if SPINNING else FRC
+		var current_friction: float = SPIN_FRC if SPINNING else FRC
 		accel_speed = move_toward(accel_speed, 0.0, current_friction)
 		slope_speed = move_toward(slope_speed, 0.0, current_friction)
 
 	# Apply extra friction while skidding
 	if SKIDDING:
 		if abs_gsp > 0:
-			var stop_friction = 1 * abs_gsp / 15 * 0.7
+			var stop_friction: float = 1.0 * abs_gsp / 15.0 * 0.7
 			accel_speed = move_toward(accel_speed, 0.0, stop_friction)
 			slope_speed = move_toward(slope_speed, 0.0, stop_friction)
 		else:
 			SKIDDING = false
-# Jump
+	# Jump
 	if GROUNDED and Input.is_action_just_pressed("input_a") and not SPINDASHING and not CROUCHING:
 		SPINNING = true
 		JUMPING  = true
@@ -216,9 +212,9 @@ func _physics_process(delta: float) -> void:
 			SPINNING = true
 			SPINDASHING = true
 			spindash_charge = 0.0 + gsp * 0.55
-		if direction.length() > 0.01:
+		if has_input:
 			model_default.call("rotate_toward_direction", last_input_dir, delta * 3)
-
+		
 		if abs_gsp > SPINDASH_SLOWDOWN_THRESHOLD:
 			var stop_friction: float = 1.0 * abs_gsp / 10.0
 			accel_speed = move_toward(accel_speed, 0.0, stop_friction)
@@ -228,8 +224,8 @@ func _physics_process(delta: float) -> void:
 
 	# Spindash release
 	elif SPINDASHING:
-		var dash_dir: Vector3 = direction if direction != Vector3.ZERO else last_input_dir
-		if dash_dir != Vector3.ZERO:
+		var dash_dir: Vector3 = input_dir if has_input else last_input_dir
+		if not dash_dir.is_zero_approx():
 			move_dir = dash_dir
 			slope_speed = spindash_charge * SPINDASH_RELEASE_MULT
 			SPINNING = true
@@ -262,22 +258,19 @@ func _physics_process(delta: float) -> void:
 	
 	# --- Movement Code --- #
 	if not SPINDASHING and not CROUCHING and not SKIDDING: 
-		if direction.length() > 0.01:
-			
+		if has_input:
 			# Rotate toward new input direction
 			var turn_speed: float = clampf(1.0 - (absf(accel_speed) / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0)
-			if move_dir == Vector3.ZERO:
-				move_dir = direction
-			move_dir = move_dir.slerp(direction, turn_speed)
 			
-			
-			var dot: float = move_dir.normalized().dot(direction)
+			move_dir = move_dir.slerp(input_dir, turn_speed).normalized()
+			#recompute this
+			move_dot = move_dir.normalized().dot(input_dir)
 			
 			# Accelerate
 			if not SPINNING and not CROUCHING and not SKIDDING:
-				if dot > 0:
+				if move_dot > 0:
 					accel_speed = minf(accel_speed + ACC, TOPACC)
-				elif dot < 0:
+				elif move_dot < 0:
 					accel_speed = maxf(accel_speed - DEC, -TOPACC)
 		else:
 			# Apply friction when no input
@@ -287,7 +280,7 @@ func _physics_process(delta: float) -> void:
 	
 	if SPINNING and GROUNDED:
 		var friction = SPIN_FRC
-		if direction.length() > 0.01:
+		if has_input:
 			accel_speed = move_toward(accel_speed, 0.0, friction)
 			slope_speed = move_toward(slope_speed, 0.0, friction)
 	
@@ -312,7 +305,7 @@ func _physics_process(delta: float) -> void:
 			elif slope_strength > 0: # Uphill
 				slope_speed -= slope_strength * SLOPE_UPHILL_SLOW * delta
 				# Removed MIN_GSP_UPHILL clamp here
-	
+		
 		# Clamp slope speed
 		slope_speed = clampf(slope_speed, -MAXSPD, MAXSPD)
 	else:
@@ -327,12 +320,10 @@ func _physics_process(delta: float) -> void:
 	if not GROUNDED:
 		var current_h_velocity: Vector3 = Vector3(velocity.x, 0, velocity.z)
 		var current_speed: float = current_h_velocity.length()
-		var current_dir: Vector3 = current_h_velocity.normalized() if current_speed > 0.01 else Vector3.ZERO
+		var current_h_dir: Vector3 = current_h_velocity.normalized() if current_speed > 0.01 else Vector3.ZERO
 		
-		if direction.length() > 0.01:
-			var dot: float = current_dir.dot(input_dir)
-			
-			if dot > 0:
+		if has_input:
+			if current_h_dir.dot(input_dir) > 0:
 				# Accelerate in air toward input direction
 				var target_speed: float = clampf(current_speed + AIR_ACC * delta, 0, MAXSPD)
 				var desired_velocity: Vector3 = input_dir * target_speed
@@ -343,12 +334,11 @@ func _physics_process(delta: float) -> void:
 			else:
 				# Opposite or perpendicular input — slow down gently, allow slight steering
 				var target_speed: float = maxf(current_speed - AIR_ACC * 0.5 * delta, 0)
-				var desired_velocity: Vector3 = current_dir * target_speed
 				
 				# Blend slightly toward input direction to allow some control
-				var blended_dir: Vector3 = current_dir.slerp(input_dir, 0.1) # small influence
+				var blended_dir: Vector3 = current_h_dir.slerp(input_dir, 0.1) # small influence
 				
-				desired_velocity = blended_dir * target_speed
+				var desired_velocity: Vector3 = blended_dir * target_speed
 				
 				velocity.x = lerpf(velocity.x, desired_velocity.x, AIR_CONTROL * delta)
 				velocity.z = lerpf(velocity.z, desired_velocity.z, AIR_CONTROL * delta)
@@ -362,8 +352,7 @@ func _physics_process(delta: float) -> void:
 		var move_vector = move_dir * gsp
 		velocity.x = move_vector.x
 		velocity.z = move_vector.z
-	
-	if GROUNDED:
+		
 		var threshold: float = 0.5  # tweak as needed
 		
 		# If on a steep slope (close to wall) and vertical speed along slope is low, detach
@@ -376,7 +365,6 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	
 	# --- Model rotation and tilt ---
-	var dot: float = move_dir.normalized().dot(direction)
 	if move_dir != Vector3.ZERO:
 		if not SKIDDING:
 			model_default.call("rotate_toward_direction", move_dir, delta)
@@ -391,7 +379,7 @@ func _physics_process(delta: float) -> void:
 			ground_ray.global_rotation = Vector3.ZERO
 			ground_ray.look_at(global_transform.origin + ground_ray.target_position, up_direction)
 
-	model_spin.visible = SPINNING
+	spinball_mesh.visible = SPINNING
 
 	# --- Detect Spin State Transitions ---
 	if GROUNDED:
