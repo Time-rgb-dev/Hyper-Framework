@@ -28,3 +28,4 @@ surface_material_override/32 = ExtResource("4_sqo5p")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.735802, 2.28882e-05, -1.18819)
 shape = SubResource("ConcavePolygonShape3D_riog4")
+debug_color = Color(0, 0.811765, 0.945098, 0.996078)

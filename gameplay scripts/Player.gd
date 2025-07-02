@@ -44,7 +44,11 @@ extends CharacterBody3D
 @export var ROLLTYPE = 1
 
 @export var BUTTON_ROLL: StringName = "input_rt"
-@export var BUTTON_LEFT: StringName
+@export var BUTTON_JUMP: StringName = "input_a"
+@export var BUTTON_LEFT: StringName = "input_left"
+@export var BUTTON_RIGHT: StringName = "input_right"
+@export var BUTTON_UP: StringName = "input_forward"
+@export var BUTTON_DOWN: StringName = "input_back"
 
 # State
 var gsp: float = 0.0
@@ -69,7 +73,6 @@ var slope_speed: float = 0.0
 
 var slope_normal: Vector3  = Vector3.UP
 var terrain_up_smooth: Vector3 = Vector3.UP
-var ground_distance: float = INF
 
 func get_jump_vector(normal: Vector3) -> Vector3:
 	return (Vector3.UP + normal * 1.5).normalized()
@@ -78,11 +81,9 @@ func update_ground_info():
 	if ground_ray.is_colliding():
 		GROUNDED = true
 		slope_normal = ground_ray.get_collision_normal()
-		ground_distance = ground_ray.global_transform.origin.distance_to(ground_ray.get_collision_point())
 	else:
 		GROUNDED = false
 		slope_normal = Vector3.UP
-		ground_distance = INF
 		
 		# Align the raycast rotation with the model
 		var forward: Vector3 = -model_default.transform.basis.z.normalized()
@@ -133,7 +134,7 @@ func _physics_process(delta: float) -> void:
 			slope_speed = 0.0
 	
 	# Input
-	var input: Vector2 = Input.get_vector("input_left", "input_right", "input_back", "input_forward")
+	var input: Vector2 = Input.get_vector(BUTTON_LEFT, BUTTON_RIGHT, BUTTON_DOWN, BUTTON_UP)
 	
 	var cam_basis: Basis = camera.global_transform.basis
 	var cam_forward: Vector3 = -cam_basis.z.normalized()
@@ -176,7 +177,7 @@ func _physics_process(delta: float) -> void:
 		else:
 			SKIDDING = false
 	# Jump
-	if GROUNDED and Input.is_action_just_pressed("input_a") and not SPINDASHING and not CROUCHING:
+	if GROUNDED and Input.is_action_just_pressed(BUTTON_JUMP) and not SPINDASHING and not CROUCHING:
 		SPINNING = true
 		JUMPING  = true
 		SKIDDING = false
@@ -201,13 +202,13 @@ func _physics_process(delta: float) -> void:
 	
 # --- VARIABLE JUMP HEIGHT --- #
 # Cut jump short if A is released and still going upward
-	if not GROUNDED and JUMPING and not Input.is_action_pressed("input_a"):
+	if not GROUNDED and JUMPING and not Input.is_action_pressed(BUTTON_JUMP):
 		if velocity.y > 0:
 			velocity.y *= 0.5  # You can tweak this (e.g. 0.4–0.6)
 		JUMPING = false  # Prevent multiple reductions
 	
 	# Spindash charging
-	if GROUNDED and CROUCHING and Input.is_action_pressed("input_a"):
+	if GROUNDED and CROUCHING and Input.is_action_pressed(BUTTON_JUMP):
 		if not SPINDASHING:
 			SPINNING = true
 			SPINDASHING = true
