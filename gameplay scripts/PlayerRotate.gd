@@ -1,5 +1,7 @@
 extends Node3D
 
+#DefaultModel
+
 const ROTATION_SPEED = 10.0
 const TILT_SPEED = 6.0
 

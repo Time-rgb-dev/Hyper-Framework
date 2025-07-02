@@ -2,6 +2,8 @@ extends RayCast3D
 const ROTATION_SPEED = 10.0
 const TILT_SPEED = 5.0
 
+#GroundRay
+
 func rotate_toward_direction(direction: Vector3, delta: float) -> void:
 	var target_yaw = atan2(direction.x, direction.z)
 	var current_yaw = rotation.y

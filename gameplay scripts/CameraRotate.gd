@@ -31,13 +31,15 @@ func _process(delta: float) -> void:
 			slope_angle = -slope_angle
 		
 		# Blend toward slope angle (if desired)
-		var target = lerp(pitch, slope_angle, delta * tilt_speed)
+		#var target = lerp(pitch, slope_angle, delta * tilt_speed)
 		# pitch_pivot.rotation.x = target  # Uncomment to override player control with slope tilt
 		
 		
 
 const ROTATION_SPEED = 10.0
 const TILT_SPEED = 3.0
+
+#TwistPivot
 
 func rotate_toward_direction(direction: Vector3, delta: float) -> void:
 	var target_yaw = atan2(direction.x, direction.z)
