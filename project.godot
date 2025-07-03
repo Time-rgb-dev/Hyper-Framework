@@ -19,10 +19,6 @@ config/icon="res://icon.svg"
 
 window/defaults/default_clear_color=Color(0, 0.29689, 0.573042, 1)
 
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/terrain_3d/plugin.cfg")
-
 [input]
 
 input_forward={

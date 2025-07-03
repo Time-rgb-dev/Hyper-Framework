@@ -45,7 +45,6 @@ wall_min_slide_angle = 0.469494
 floor_block_on_wall = true
 floor_snap_length = 10.4
 platform_on_leave = 1
-BUTTON_ROLL = &"input_b"
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="WorldEnvironment"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3142.31, 2173.4, -3592.32)
