@@ -119,31 +119,17 @@ func update_ground_info() -> void:
 		ground_ray.look_at(ground_ray.global_transform.origin - forward)
 
 func _physics_process(delta: float) -> void:
-	update_ground_info()
-	var on_floor: bool = is_on_floor() #and angle_from_up < floor_max_angle
-	
-	var slope_angle: float = acos(slope_normal.dot(GRAVITY_NORMAL))
-	
-	#if on_floor:
-		#var platform: KinematicCollision3D = get_last_slide_collision()
-		#if platform and platform.has_method("get_velocity"):
-			#velocity += platform.get_velocity()
+	#update_ground_info()
 	
 	# Calculate rotation that aligns body "down" with floor normal
 	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
 	
 	if not axis.is_zero_approx():
-		var quat_rotate: Quaternion = Quaternion(axis, slope_angle)
+		var quat_rotate: Quaternion = Quaternion(axis, acos(slope_normal.dot(GRAVITY_NORMAL)))
 		model_rotation_base.rotation = quat_rotate.get_euler()
 	else:
 		# Floor normal and up vector are the same (flat ground)
 		model_rotation_base.rotation = Vector3.ZERO
-	
-	# Update grounded state and gravity
-	#if on_floor and not GROUNDED:
-		#SPINNING = false
-		#JUMPING  = false
-	GROUNDED = on_floor
 	
 	# Input
 	var input: Vector2 = Input.get_vector(BUTTON_LEFT, BUTTON_RIGHT, BUTTON_DOWN, BUTTON_UP)
@@ -161,14 +147,6 @@ func _physics_process(delta: float) -> void:
 	
 	var move_dot: float = move_dir.normalized().dot(input_dir)
 	var vel_move_dot: float = input_dir.dot(velocity.normalized())
-	
-	var current_friction: float = SPIN_FRC if SPINNING else FRC
-	
-	if has_input: #This... isn't doing anything right now. It's too early.
-		last_input_dir = input_dir
-	else:
-		accel_speed = move_toward(accel_speed, 0.0, current_friction)
-		slope_speed = move_toward(slope_speed, 0.0, current_friction)
 	
 	if GROUNDED:
 		#STEP 1: Check for crouching, balancing, etc.
@@ -212,7 +190,6 @@ func _physics_process(delta: float) -> void:
 			# Get slope tilt from model forward tilt
 			var forward_vec: Vector3 = -model_default.transform.basis.z.normalized()
 			var slope_strength: float = forward_vec.y
-			print(slope_strength, slope_normal.dot(GRAVITY_NORMAL))
 			
 			if absf(slope_strength) < 0.01:
 				slope_strength = 0.0
@@ -240,6 +217,8 @@ func _physics_process(delta: float) -> void:
 			SKIDDING = false
 		
 		#STEP 5: Direction input factors, friction/deceleration
+		
+		var current_friction: float = SPIN_FRC if SPINNING else FRC
 		
 		# Detect skidding
 		if not SPINNING and not CROUCHING and has_input:
@@ -344,20 +323,30 @@ func _physics_process(delta: float) -> void:
 		
 		#STEP 11: Check ground angles
 		
+		ground_ray.target_position = -up_direction * floor_snap_length
+		
 		if JUMPING:
 			GROUNDED = false
 		else:
 			GROUNDED = ground_ray.is_colliding()
+		
+		if GROUNDED:
+			apply_floor_snap()
+			slope_normal = ground_ray.get_collision_normal()
 		
 		#STEP 12: Check slipping/falling
 		
 		var threshold: float = 0.5  # tweak as needed
 		
 		# If on a steep slope (close to wall) and vertical speed along slope is low, detach
-		if slope_angle > 90 and abs_gsp < threshold:
+		if slope_normal.dot(GRAVITY_NORMAL) < 0 and abs_gsp < threshold:
 			GROUNDED = false
+			up_direction = GRAVITY_NORMAL
+		else:
+			up_direction = slope_normal
 			# Optionally reset or reduce speed when detaching
 			# velocity.y = 0
+	
 	else: #not GROUNDED
 		#STEP 1: check for jump button release
 		if JUMPING and not Input.is_action_pressed(BUTTON_JUMP):
@@ -401,7 +390,7 @@ func _physics_process(delta: float) -> void:
 		#STEP 4: Air drag
 		
 		# Airborne or spindash - let slope speed decay
-		slope_speed = move_toward(slope_speed, 0, DEC * delta)
+		#slope_speed = move_toward(slope_speed, 0, DEC * delta)
 		
 		#STEP 5: Move the player
 		move_and_slide()
@@ -415,17 +404,21 @@ func _physics_process(delta: float) -> void:
 		slope_normal = GRAVITY_NORMAL
 		
 		#STEP 9: Collision checks
+		ground_ray.target_position = -GRAVITY_NORMAL * floor_snap_length
 		
 		if ground_ray.is_colliding() and get_slide_collision_count() > 0:
 			GROUNDED = true
 			slope_normal = ground_ray.get_collision_normal()
+	
+	if has_input:
+		last_input_dir = input_dir
 	
 	# --- Model rotation and tilt ---
 	if move_dir != Vector3.ZERO:
 		if not SKIDDING:
 			rotate_toward_direction(model_default, move_dir, delta, 10.0)
 			if GROUNDED:
-				tilt_to_normal(twist,delta, 3.0, 180.0, -1.5)
+				tilt_to_normal(twist, delta, 3.0, 180.0, -1.5)
 				
 				if Input.is_action_just_pressed("input_lb"):
 					twist.rotation = Vector3.ZERO
@@ -433,9 +426,6 @@ func _physics_process(delta: float) -> void:
 				tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
 		else:
 			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
-			
-			ground_ray.target_position = -up_direction.normalized() * 5.0
-			ground_ray.global_rotation = Vector3.ZERO
 
 	spinball_mesh.visible = SPINNING and not DROPDASHING
 

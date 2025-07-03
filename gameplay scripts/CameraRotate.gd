@@ -16,15 +16,16 @@ var pitch := 0.0
 var smoothed_pitch := 0.0
 
 func _process(delta: float) -> void:
+	
 	# --- Input
-	var input_y := Input.get_axis("input_cursor_left", "input_cursor_right")
-	var input_x := Input.get_axis("input_cursor_down", "input_cursor_up")
+	var input_x := Input.get_axis("input_cursor_left", "input_cursor_right")
+	var input_y := Input.get_axis("input_cursor_down", "input_cursor_up")
 
 	# --- Yaw (TwistPivot - left/right)
-	rotate_y(input_y * 0.025)
+	rotate_y(input_x * 0.025)
 
 	# --- Pitch (PitchPivot - up/down)
-	pitch -= input_x * 0.025
+	pitch -= input_y * 0.025
 	pitch = clamp(pitch, deg_to_rad(-45), deg_to_rad(75))  # prevents flipping
 	pitch_pivot.rotation.x = pitch
 
@@ -59,6 +60,7 @@ func _process(delta: float) -> void:
 			# Optionally blend with manual pitch
 			var final_pitch = lerp(pitch, smoothed_pitch, delta * tilt_speed)
 			pitch_pivot.rotation.x = final_pitch  # Uncomment to apply
+
 const ROTATION_SPEED = 10.0
 const TILT_SPEED = 3.0
 

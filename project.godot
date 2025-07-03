@@ -10,7 +10,8 @@ config_version=5
 
 [application]
 
-config/name="Untitled 3D Sonic project"
+config/name="Fusion Framework"
+config/description="A 3D Sonic framework aiming to be classic-accurates"
 run/main_scene="uid://c1m30chim3x0k"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"

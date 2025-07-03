@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3 uid="uid://xxi1ucim43jm"]
+
+[ext_resource type="PackedScene" uid="uid://dn101qlgju4xf" path="res://Terrain/green_hill_zone.glb" id="1_pxy3r"]
+[ext_resource type="PackedScene" uid="uid://bsw3eskg02iuk" path="res://Terrain/GHZ_Collision.tscn" id="2_mtr5m"]
+
+[node name="Sketchfab_Scene" instance=ExtResource("1_pxy3r")]
+
+[node name="StaticBody3D" parent="." index="1" instance=ExtResource("2_mtr5m")]

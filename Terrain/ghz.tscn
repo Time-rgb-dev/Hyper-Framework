@@ -1,0 +1,21 @@
+[gd_scene load_steps=4 format=3 uid="uid://c6jtj12pxnykp"]
+
+[ext_resource type="PackedScene" uid="uid://xxi1ucim43jm" path="res://Terrain/GHZData.tscn" id="1_u5hmi"]
+[ext_resource type="PackedScene" uid="uid://f4cgq5ixf1rn" path="res://objects/Player/Player.tscn" id="2_s5fof"]
+
+[sub_resource type="Environment" id="Environment_u5hmi"]
+background_mode = 1
+background_color = Color(0, 0.482353, 1, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.521141, 0.521141, 0.521141, 1)
+
+[node name="GHZ" type="Node3D"]
+
+[node name="Player" parent="." instance=ExtResource("2_s5fof")]
+transform = Transform3D(1.01536, 0, 0, 0, 1.01536, 0, 0, 0, 1.01536, 0, 2.81311, 0)
+
+[node name="Sketchfab_Scene" parent="." instance=ExtResource("1_u5hmi")]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_u5hmi")
