@@ -1,4 +1,4 @@
-extends Label3D
+extends Label
 
 @export var player: Node3D  # Drag your player object into this in the editor
 

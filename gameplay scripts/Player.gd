@@ -85,13 +85,13 @@ func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: f
 	var forward: Vector3 = -object.transform.basis.z.normalized()
 
 	# Check if on flat ground
-	if get_floor_normal().dot(GRAVITY_NORMAL) >= 0.999:
+	if slope_normal.dot(GRAVITY_NORMAL) >= 0.999:
 		# Smoothly reset tilt to 0
 		object.rotation.x = lerp_angle(object.rotation.x, 0.0, delta * tilt_speed)
 		return
 
 	# Determine slope in forward direction
-	var slope_forward: float = get_floor_normal().normalized().dot(forward)
+	var slope_forward: float = slope_normal.dot(forward)
 
 	# Compute pitch angle — limit to a reasonable range (e.g., 0.35 rad ≈ 20 degrees)
 	var max_tilt: float = deg_to_rad(max_angle)

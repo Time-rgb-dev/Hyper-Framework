@@ -26,7 +26,7 @@ func _process(delta: float) -> void:
 
 	# --- Pitch (PitchPivot - up/down)
 	pitch -= input_y * 0.025
-	pitch = clamp(pitch, deg_to_rad(-45), deg_to_rad(75))  # prevents flipping
+	#pitch = clampf(pitch, deg_to_rad(-45), deg_to_rad(75))  # prevents flipping
 	pitch_pivot.rotation.x = pitch
 
 	# --- OPTIONAL: Slope-aware auto-tilt (blended with pitch)
