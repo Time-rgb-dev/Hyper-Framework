@@ -4,7 +4,7 @@ extends CharacterBody3D
 @onready var model_default = $CollisionShape3D2/DefaultModel
 @onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
 @onready var model_rotation_base: Node3D = $CollisionShape3D2
-@onready var camera = $TwistPivot/PitchPivot/Camera3D
+@onready var camera = $TwistPivot/PitchPivot/SpringArm3D/Camera3D
 @onready var ground_ray: RayCast3D = $GroundRay
 @onready var twist = $TwistPivot
 @onready var pitch = $TwistPivot/PitchPivot
@@ -25,8 +25,8 @@ extends CharacterBody3D
 
 @export var SLOPE_DOWNHILL_BOOST: float = 100.0
 @export var SLOPE_UPHILL_SLOW: float    = 50.0
-@export var SPIN_SLOPE_BOOST: float     = 350.0
-@export var SPIN_SLOPE_SLOW: float      = 125.0
+@export var SPIN_SLOPE_BOOST: float     = 200.0
+@export var SPIN_SLOPE_SLOW: float      = 100.0
 
 @export var MIN_GSP_UPHILL: float = 0.0
 
@@ -363,29 +363,27 @@ func _physics_process(delta: float) -> void:
 		var current_h_dir: Vector3 = current_h_velocity.normalized() if current_speed > 0.01 else Vector3.ZERO
 		
 		if has_input:
-			if current_h_dir.dot(input_dir) > 0:
-				# Accelerate in air toward input direction
-				var target_speed: float = clampf(current_speed + AIR_ACC * delta, 0, MAXSPD)
-				var desired_velocity: Vector3 = input_dir * target_speed
-				
-				# Smoothly adjust velocity toward desired velocity
-				velocity.x = lerpf(velocity.x, desired_velocity.x, AIR_CONTROL * delta)
-				velocity.z = lerpf(velocity.z, desired_velocity.z, AIR_CONTROL * delta)
-			else:
-				# Opposite or perpendicular input — slow down gently, allow slight steering
-				var target_speed: float = maxf(current_speed - AIR_ACC * 0.5 * delta, 0)
-				
-				# Blend slightly toward input direction to allow some control
-				var blended_dir: Vector3 = current_h_dir.slerp(input_dir, 0.1) # small influence
-				
-				var desired_velocity: Vector3 = blended_dir * target_speed
-				
-				velocity.x = lerpf(velocity.x, desired_velocity.x, AIR_CONTROL * delta)
-				velocity.z = lerpf(velocity.z, desired_velocity.z, AIR_CONTROL * delta)
+			# Smoothly rotate move_dir toward input_dir in the air
+			var turn_speed: float = clamp(1.0 - (abs(accel_speed) / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0) * 0.5
+			move_dir = move_dir.slerp(input_dir, turn_speed).normalized()
+
+			# Adjust acceleration based on input alignment
+			var dot = move_dir.normalized().dot(input_dir)
+			if dot > 0:
+				accel_speed = clampf(accel_speed + AIR_ACC * delta, -TOPACC, TOPACC)
+			elif dot < 0:
+				accel_speed = clampf(accel_speed - AIR_ACC * 0.5 * delta, -TOPACC, TOPACC)
 		else:
-			# No input, maintain current horizontal velocity (or decay slightly if desired)
-			velocity.x = lerpf(velocity.x, current_h_velocity.x, AIR_CONTROL * 0.1 * delta)
-			velocity.z = lerpf(velocity.z, current_h_velocity.z, AIR_CONTROL * 0.1 * delta)
+			# No input — slowly reduce accel_speed
+			accel_speed = move_toward(accel_speed, 0.0, FRC)
+
+		# STEP 3: Apply horizontal air velocity based on accel_speed and move_dir
+		gsp = clampf(accel_speed + slope_speed, -MAXSPD, MAXSPD)
+		abs_gsp = absf(gsp)
+
+		var move_vector: Vector3 = move_dir * gsp
+		velocity.x = move_vector.x
+		velocity.z = move_vector.z
 		
 		#STEP 4: Air drag
 		
