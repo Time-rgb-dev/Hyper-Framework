@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bn7xp6ckci087"
 path.s3tc="res://.godot/imported/Sonic v2 tex.png-4e1b048744e079370ca94e97e736bc6d.s3tc.ctex"
+path.etc2="res://.godot/imported/Sonic v2 tex.png-4e1b048744e079370ca94e97e736bc6d.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://objects/Player/sonicmodel/Sonic v2 tex.png"
-dest_files=["res://.godot/imported/Sonic v2 tex.png-4e1b048744e079370ca94e97e736bc6d.s3tc.ctex"]
+dest_files=["res://.godot/imported/Sonic v2 tex.png-4e1b048744e079370ca94e97e736bc6d.s3tc.ctex", "res://.godot/imported/Sonic v2 tex.png-4e1b048744e079370ca94e97e736bc6d.etc2.ctex"]
 
 [params]
 

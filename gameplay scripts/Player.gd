@@ -8,6 +8,7 @@ extends CharacterBody3D
 @onready var ground_ray: RayCast3D = $GroundRay
 @onready var twist = $TwistPivot
 @onready var pitch = $TwistPivot/PitchPivot
+@onready var debug_label: Label = $"CanvasLayer/Label"
 
 # Constants
 @export var ACC: float = 0.20895 # 85% Classic Accurate
@@ -51,7 +52,10 @@ extends CharacterBody3D
 @export var BUTTON_DOWN: StringName = "input_back"
 
 # State
-var gsp: float = 0.0
+var gsp: float = 0.0:
+	set(new_gsp):
+		gsp = new_gsp
+		abs_gsp = absf(gsp)
 var abs_gsp: float = 0.0
 var move_dir = Vector3.ZERO
 var last_input_dir = Vector3.ZERO
@@ -68,9 +72,6 @@ var spindash_charge: float = 0.0
 var roll_toggle_lock: bool = false
 
 var prev_spinning: bool = false
-
-var accel_speed: float = 0.0
-var slope_speed: float = 0.0
 
 var slope_normal: Vector3 = Vector3.UP
 
@@ -118,8 +119,11 @@ func update_ground_info() -> void:
 		var forward: Vector3 = -model_default.transform.basis.z.normalized()
 		ground_ray.look_at(ground_ray.global_transform.origin - forward)
 
+func add_debug_info(info:String) -> void:
+	debug_label.text += info + "\n"
+
 func _physics_process(delta: float) -> void:
-	#update_ground_info()
+	debug_label.text = ""
 	
 	# Calculate rotation that aligns body "down" with floor normal
 	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
@@ -134,19 +138,31 @@ func _physics_process(delta: float) -> void:
 	# Input
 	var input: Vector2 = Input.get_vector(BUTTON_LEFT, BUTTON_RIGHT, BUTTON_DOWN, BUTTON_UP)
 	
-	var cam_basis: Basis = camera.global_transform.basis
+	var cam_basis: Basis = camera.global_basis
 	var cam_forward: Vector3 = -cam_basis.z.normalized()
 	var cam_right: Vector3 = cam_basis.x.normalized()
 	
-	var input_dir: Vector3 = Vector3(cam_forward * input.y + cam_right * input.x).normalized()
-	var has_input: bool = not input_dir.is_zero_approx() if not input.is_zero_approx() else false
+	var cam_input_dir: Vector3 = Vector3(cam_forward * input.y + cam_right * input.x).normalized()
+	var has_input: bool = not cam_input_dir.is_zero_approx() if not input.is_zero_approx() else false
+	
+	add_debug_info("Input: " + str(input))
+	add_debug_info("Camera-localized Input: " + str(cam_input_dir))
+	
+	var player_forward:Vector3 = -model_rotation_base.global_basis.z.normalized()
+	var player_right:Vector3 = model_rotation_base.global_basis.x.normalized()
+	var player_input_dir:Vector3 = Vector3(player_forward * input.y + player_right * input.x).normalized()
+	add_debug_info("Player-localized Input: " + str(player_input_dir))
 	
 	# Predict intended direction if no new move_dir yet
 	if has_input and move_dir.is_zero_approx():
-		move_dir = input_dir
+		#move_dir = cam_input_dir
+		move_dir = player_input_dir
 	
-	var move_dot: float = move_dir.normalized().dot(input_dir)
-	var vel_move_dot: float = input_dir.dot(velocity.normalized())
+	#This is used for measuring the change between the 
+	var cam_move_dot: float = move_dir.dot(cam_input_dir)
+	var vel_move_dot: float = cam_input_dir.dot(velocity.normalized())
+	
+	add_debug_info("Cam move dot: " + str(cam_move_dot))
 	
 	if GROUNDED:
 		#STEP 1: Check for crouching, balancing, etc.
@@ -166,26 +182,35 @@ func _physics_process(delta: float) -> void:
 			
 			if abs_gsp > SPINDASH_SLOWDOWN_THRESHOLD:
 				var stop_friction: float = 1.0 * abs_gsp / 10.0
-				accel_speed = move_toward(accel_speed, 0.0, stop_friction)
-				slope_speed = move_toward(slope_speed, 0.0, stop_friction)
+				gsp = move_toward(gsp, 0.0, stop_friction)
 			else:
 				spindash_charge = clampf(spindash_charge + SPINDASH_CHARGE_RATE * delta, 0, SPINDASH_MAX)
+			add_debug_info("Spindash Charge: " + str(roundf(spindash_charge)))
 		elif SPINDASHING:
-			var dash_dir: Vector3 = input_dir if has_input else last_input_dir
+			var dash_dir: Vector3 = cam_input_dir if has_input else last_input_dir
 			if not dash_dir.is_zero_approx():
 				move_dir = dash_dir
-				slope_speed = spindash_charge * SPINDASH_RELEASE_MULT
+				gsp = spindash_charge * SPINDASH_RELEASE_MULT
 				SPINNING = true
 				CROUCHING = false
 			else:
 				# Fallback if no input direction
-				slope_speed = spindash_charge * SPINDASH_RELEASE_MULT
+				gsp = spindash_charge * SPINDASH_RELEASE_MULT
 				SPINNING = true
 			SPINDASHING = false
 			spindash_charge = 0.0
 			SPINNING = true
 		
 		#STEP 3: Slope factors
+		
+		#negative if the ground is a ceiling
+		var slope_mag_dot: float = slope_normal.dot(GRAVITY_NORMAL)
+		# positive if the slope and movement are in the same direction;
+		#ie. if the player is running downhill
+		var slope_dir_dot: float = player_input_dir.dot(slope_normal)
+		
+		add_debug_info("Ground Angle " + str(rad_to_deg(acos(slope_mag_dot))))
+		
 		if not SPINDASHING:
 			# Get slope tilt from model forward tilt
 			var forward_vec: Vector3 = -model_default.transform.basis.z.normalized()
@@ -194,21 +219,35 @@ func _physics_process(delta: float) -> void:
 			if absf(slope_strength) < 0.01:
 				slope_strength = 0.0
 			
-			if SPINNING:
-				if slope_strength < 0: # Downhill
-					slope_speed += absf(slope_strength) * SPIN_SLOPE_BOOST * delta
-				elif slope_strength > 0: # Uphill
-					slope_speed -= slope_strength * SPIN_SLOPE_SLOW * delta
-					# Removed MIN_GSP_UPHILL clamp here
-			else:
-				if slope_strength < 0: # Downhill
-					slope_speed += absf(slope_strength) * SLOPE_DOWNHILL_BOOST * delta
-				elif slope_strength > 0: # Uphill
-					slope_speed -= slope_strength * SLOPE_UPHILL_SLOW * delta
-					# Removed MIN_GSP_UPHILL clamp here
+			add_debug_info("Slope strength: " + str(slope_strength))
+			add_debug_info("Slope magnitude: " + str(slope_mag_dot))
+			add_debug_info("Slope direction: " + str(slope_dir_dot))
+			
+			#slope factors do NOT apply on ceilings. 
+			if slope_mag_dot > -0.5:
+				if SPINNING:
+					if slope_strength < 0: # Downhill
+						add_debug_info("SPINNING DOWNHILL")
+						gsp += absf(slope_strength) * SPIN_SLOPE_BOOST * delta
+					elif slope_strength > 0: # Uphill
+						add_debug_info("SPINNING UPHILL")
+						gsp -= slope_strength * SPIN_SLOPE_SLOW * delta
+						# Removed MIN_GSP_UPHILL clamp here
+				else:
+					if slope_strength < 0: # Downhill
+						add_debug_info("RUNNING DOWNHILL")
+						gsp += absf(slope_strength) * SLOPE_DOWNHILL_BOOST * delta
+					elif slope_strength > 0: # Uphill
+						add_debug_info("RUNNING UP THAT HILL") #kudos if you pick up the ref :trol:
+						gsp -= slope_strength * SLOPE_UPHILL_SLOW * delta
+						# Removed MIN_GSP_UPHILL clamp here
 			
 			# Clamp slope speed
-			slope_speed = clampf(slope_speed, -MAXSPD, MAXSPD)
+			gsp = clampf(gsp, -MAXSPD, MAXSPD)
+		else:
+			#WIP: Keep the player from sliding during a spindash
+			gsp = 0
+		
 		
 		#STEP 4: Check for starting a jump
 		if Input.is_action_just_pressed(BUTTON_JUMP) and can_move:
@@ -234,35 +273,32 @@ func _physics_process(delta: float) -> void:
 				SKIDDING = false
 			else:
 				# Apply extra friction while skidding
-				var stop_friction: float = abs_gsp / 15.0 * 0.7
-				accel_speed = move_toward(accel_speed, 0.0, stop_friction)
-				slope_speed = move_toward(slope_speed, 0.0, stop_friction)
+				gsp = move_toward(gsp, 0.0, abs_gsp / 15.0 * 0.7)
 		
 		elif can_move: 
 			if has_input:
 				# Rotate toward new input direction
 				var turn_speed: float = clampf(1.0 - (abs_gsp / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0)
 				
-				move_dir = move_dir.slerp(input_dir, turn_speed).normalized()
+				move_dir = move_dir.slerp(cam_input_dir, turn_speed).normalized()
 				#recompute this
-				move_dot = move_dir.normalized().dot(input_dir)
+				cam_move_dot = move_dir.dot(cam_input_dir)
 				
-				# Accelerate
-				if not SPINNING and not CROUCHING and not SKIDDING:
-					if move_dot > 0:
-						accel_speed = minf(accel_speed + ACC, TOPACC)
-					elif move_dot < 0:
-						accel_speed = maxf(accel_speed - DEC, -TOPACC)
+				if abs_gsp < TOPACC:
+					# Accelerate
+					if not SPINNING and not CROUCHING and not SKIDDING:
+						if cam_move_dot > 0:
+							gsp = minf(gsp + ACC, TOPACC)
+						elif cam_move_dot < 0:
+							gsp = maxf(gsp - DEC, -TOPACC)
 			else:
 				# Apply friction when no input
-				accel_speed = move_toward(accel_speed, 0.0, current_friction)
-				slope_speed = move_toward(slope_speed, 0.0, current_friction)
+				gsp = move_toward(gsp, 0.0, current_friction)
 		
 		#Rolling friction
 		if SPINNING:
 			if has_input:
-				accel_speed = move_toward(accel_speed, 0.0, current_friction)
-				slope_speed = move_toward(slope_speed, 0.0, current_friction)
+				gsp = move_toward(gsp, 0.0, current_friction)
 		
 		#STEP 6: Check crouching, balancing, etc.
 		
@@ -274,10 +310,9 @@ func _physics_process(delta: float) -> void:
 			var wall_dot: float = forward.dot(wall_normal)
 			
 			if wall_dot < WALL_THRESHOLD:  # Almost head-on into wall
+				add_debug_info("WALL COLLISION")
 				gsp = 0.0
 				abs_gsp = 0.0
-				accel_speed = 0.0
-				slope_speed = 0.0
 		
 		#STEP 8: Check for doing a roll
 		
@@ -299,9 +334,9 @@ func _physics_process(delta: float) -> void:
 		#STEP 9: Handle camera bounds (not gonna worry about that)
 		
 		#STEP 10: Move the player (apply gsp to velocity)
+		gsp = clampf(gsp, -MAXSPD, MAXSPD)
 		
-		gsp = clampf(accel_speed + slope_speed, -MAXSPD, MAXSPD)
-		abs_gsp = absf(gsp)
+		add_debug_info("Ground Speed: " + str(gsp))
 		
 		if not SPINDASHING:
 			var move_vector: Vector3 = move_dir
@@ -310,14 +345,14 @@ func _physics_process(delta: float) -> void:
 			velocity.z = move_vector.z
 		
 		if JUMPING:
-			var slope_strength: float = clampf(move_dir.dot(-slope_normal), -1.0, 1.0)
+			#var slope_strength: float = clampf(move_dir.dot(-slope_normal), -1.0, 1.0)
 			
 			# Reduce horizontal speed when jumping uphill steeply
-			var forward_speed_loss: float = slope_strength * 0.3 * gsp
-			accel_speed = clampf(accel_speed - forward_speed_loss, -MAXSPD, MAXSPD)
-			slope_speed = clampf(slope_speed - forward_speed_loss, -MAXSPD, MAXSPD)
+			#var forward_speed_loss: float = slope_strength * 0.3 * gsp
+			#gsp = clampf(gsp - forward_speed_loss, -MAXSPD, MAXSPD)
+			#gsp = clampf(gsp - forward_speed_loss, -MAXSPD, MAXSPD)
 			
-			velocity += slope_normal.normalized() * JUMP_VELOCITY
+			velocity += slope_normal * JUMP_VELOCITY
 		
 		move_and_slide()
 		
@@ -336,14 +371,21 @@ func _physics_process(delta: float) -> void:
 		
 		#STEP 12: Check slipping/falling
 		
-		var threshold: float = 0.5  # tweak as needed
+		var threshold: float = 10.0
+		
+		slope_mag_dot = slope_normal.dot(GRAVITY_NORMAL)
 		
 		# If on a steep slope (close to wall) and vertical speed along slope is low, detach
-		if slope_normal.dot(GRAVITY_NORMAL) < 0 and abs_gsp < threshold:
-			GROUNDED = false
-			up_direction = GRAVITY_NORMAL
+		if abs_gsp < threshold:
+			if slope_mag_dot < 0: 
+				GROUNDED = false
+				up_direction = GRAVITY_NORMAL
+				add_debug_info("GROUND UNSTICK")
+			else:
+				add_debug_info("GROUND NEUTRAL")
 		else:
 			up_direction = slope_normal
+			add_debug_info("GROUND STICK")
 			# Optionally reset or reduce speed when detaching
 			# velocity.y = 0
 	
@@ -354,41 +396,46 @@ func _physics_process(delta: float) -> void:
 				velocity.y *= 0.5  # You can tweak this (e.g. 0.4–0.6)
 			JUMPING = false  # Prevent multiple reductions
 		
+		add_debug_info("Jumping: " + str(JUMPING))
+		
 		#STEP 2: Super Sonic checks (not gonna worry about that)
 		
 		#STEP 3: Directional input
 		
 		var current_h_velocity: Vector3 = Vector3(velocity.x, 0, velocity.z)
 		var current_speed: float = current_h_velocity.length()
-		var current_h_dir: Vector3 = current_h_velocity.normalized() if current_speed > 0.01 else Vector3.ZERO
+		#var current_h_dir: Vector3 = current_h_velocity.normalized() if current_speed > 0.01 else Vector3.ZERO
 		
 		if has_input:
-			# Smoothly rotate move_dir toward input_dir in the air
-			var turn_speed: float = clamp(1.0 - (abs(accel_speed) / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0) * 0.5
-			move_dir = move_dir.slerp(input_dir, turn_speed).normalized()
-
-			# Adjust acceleration based on input alignment
-			var dot = move_dir.normalized().dot(input_dir)
-			if dot > 0:
-				accel_speed = clampf(accel_speed + AIR_ACC * delta, -TOPACC, TOPACC)
-			elif dot < 0:
-				accel_speed = clampf(accel_speed - AIR_ACC * 0.5 * delta, -TOPACC, TOPACC)
+			# Smoothly rotate move_dir toward cam_input_dir in the air
+			var turn_speed: float = clampf(1.0 - (absf(gsp) / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0) * 0.5
+			move_dir = move_dir.slerp(cam_input_dir, turn_speed).normalized()
+			
+			#recompute this
+			cam_move_dot = move_dir.dot(cam_input_dir)
+			
+			if abs_gsp < TOPACC:
+				# Adjust acceleration based on input alignment
+				if cam_move_dot > 0:
+					gsp = clampf(gsp + AIR_ACC * delta, -TOPACC, TOPACC)
+				elif cam_move_dot < 0:
+					gsp = clampf(gsp - AIR_ACC * 0.5 * delta, -TOPACC, TOPACC)
 		else:
-			# No input — slowly reduce accel_speed
-			accel_speed = move_toward(accel_speed, 0.0, FRC)
-
-		# STEP 3: Apply horizontal air velocity based on accel_speed and move_dir
-		gsp = clampf(accel_speed + slope_speed, -MAXSPD, MAXSPD)
-		abs_gsp = absf(gsp)
-
+			# No input — slowly reduce gsp
+			gsp = move_toward(gsp, 0.0, FRC)
+		
+		# STEP 3: Apply horizontal air velocity based on gsp and move_dir
+		gsp = clampf(gsp, -MAXSPD, MAXSPD)
+		
+		add_debug_info("Ground Speed: " + str(gsp))
+		
 		var move_vector: Vector3 = move_dir * gsp
 		velocity.x = move_vector.x
 		velocity.z = move_vector.z
-		
 		#STEP 4: Air drag
 		
 		# Airborne or spindash - let slope speed decay
-		#slope_speed = move_toward(slope_speed, 0, DEC * delta)
+		#gsp = move_toward(gsp, 0, DEC * delta)
 		
 		#STEP 5: Move the player
 		move_and_slide()
@@ -407,9 +454,12 @@ func _physics_process(delta: float) -> void:
 		if ground_ray.is_colliding() and get_slide_collision_count() > 0:
 			GROUNDED = true
 			slope_normal = ground_ray.get_collision_normal()
+			
+			#WIP: Apply velocity to ground (slope) speed
+			gsp += (1.0 - slope_normal.dot(GRAVITY_NORMAL)) * velocity.length()
 	
 	if has_input:
-		last_input_dir = input_dir
+		last_input_dir = cam_input_dir
 	
 	# --- Model rotation and tilt ---
 	if move_dir != Vector3.ZERO:

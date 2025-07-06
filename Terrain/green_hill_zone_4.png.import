@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://bfj5agby2hfd4"
 path.s3tc="res://.godot/imported/green_hill_zone_4.png-bd24a3a906458b2f8a0d1d027975377e.s3tc.ctex"
+path.etc2="res://.godot/imported/green_hill_zone_4.png-bd24a3a906458b2f8a0d1d027975377e.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://Terrain/green_hill_zone_4.png"
-dest_files=["res://.godot/imported/green_hill_zone_4.png-bd24a3a906458b2f8a0d1d027975377e.s3tc.ctex"]
+dest_files=["res://.godot/imported/green_hill_zone_4.png-bd24a3a906458b2f8a0d1d027975377e.s3tc.ctex", "res://.godot/imported/green_hill_zone_4.png-bd24a3a906458b2f8a0d1d027975377e.etc2.ctex"]
 
 [params]
 

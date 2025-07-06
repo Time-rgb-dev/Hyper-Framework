@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cijcbyil0hfgd"
 path.s3tc="res://.godot/imported/k1_tika1.png-71aca360c5002f288afb2ec1a25fb51a.s3tc.ctex"
+path.etc2="res://.godot/imported/k1_tika1.png-71aca360c5002f288afb2ec1a25fb51a.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://Terrain/k1_tika1.png"
-dest_files=["res://.godot/imported/k1_tika1.png-71aca360c5002f288afb2ec1a25fb51a.s3tc.ctex"]
+dest_files=["res://.godot/imported/k1_tika1.png-71aca360c5002f288afb2ec1a25fb51a.s3tc.ctex", "res://.godot/imported/k1_tika1.png-71aca360c5002f288afb2ec1a25fb51a.etc2.ctex"]
 
 [params]
 

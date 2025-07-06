@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://g7s64j7buq52"
 path.s3tc="res://.godot/imported/Tex_0061_0.png-a8b8f9e1f4616982e6a2a0716be3441d.s3tc.ctex"
+path.etc2="res://.godot/imported/Tex_0061_0.png-a8b8f9e1f4616982e6a2a0716be3441d.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/Stage Objects/Rings/Tex_0061_0.png"
-dest_files=["res://.godot/imported/Tex_0061_0.png-a8b8f9e1f4616982e6a2a0716be3441d.s3tc.ctex"]
+dest_files=["res://.godot/imported/Tex_0061_0.png-a8b8f9e1f4616982e6a2a0716be3441d.s3tc.ctex", "res://.godot/imported/Tex_0061_0.png-a8b8f9e1f4616982e6a2a0716be3441d.etc2.ctex"]
 
 [params]
 

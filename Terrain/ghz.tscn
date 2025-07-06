@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://c6jtj12pxnykp"]
+[gd_scene load_steps=6 format=3 uid="uid://c6jtj12pxnykp"]
 
 [ext_resource type="PackedScene" uid="uid://xxi1ucim43jm" path="res://Terrain/GHZData.tscn" id="1_u5hmi"]
 [ext_resource type="PackedScene" uid="uid://f4cgq5ixf1rn" path="res://objects/Player/Player.tscn" id="2_s5fof"]
@@ -22,38 +22,14 @@ ambient_light_energy = 1.51
 reflected_light_source = 2
 tonemap_mode = 2
 
-[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_nwodg"]
-auto_exposure_enabled = true
-dof_blur_far_distance = 46.84
-
-[sub_resource type="Environment" id="Environment_u5hmi"]
-background_mode = 1
-background_color = Color(0, 0.482353, 1, 1)
-ambient_light_source = 2
-ambient_light_color = Color(0.521141, 0.521141, 0.521141, 1)
-
 [node name="GHZ" type="Node3D"]
 transform = Transform3D(1.2, 0, 0, 0, 1.2, 0, 0, 0, 1.2, 0, 0, 0)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_s5fof")
 
 [node name="Player" parent="." instance=ExtResource("2_s5fof")]
 transform = Transform3D(1.01536, 0, 0, 0, 1.01536, 0, 0, 0, 1.01536, 77.7671, 4.1395, -26.0271)
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="Player"]
-environment = SubResource("Environment_s5fof")
-camera_attributes = SubResource("CameraAttributesPractical_nwodg")
-
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Player/WorldEnvironment"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3142.31, 2173.4, -3592.32)
-visible = false
-light_color = Color(1, 0.78, 0.78, 1)
-light_energy = 2.604
-light_indirect_energy = 1.065
-shadow_enabled = true
-shadow_bias = 0.517
-shadow_transmittance_bias = 0.505
-
 [node name="Sketchfab_Scene" parent="." instance=ExtResource("1_u5hmi")]
 transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
-
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_u5hmi")

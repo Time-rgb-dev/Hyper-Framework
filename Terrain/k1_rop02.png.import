@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://oge5o7d08jal"
 path.s3tc="res://.godot/imported/k1_rop02.png-9dea5aaba8bccead124b0d1d339914c1.s3tc.ctex"
+path.etc2="res://.godot/imported/k1_rop02.png-9dea5aaba8bccead124b0d1d339914c1.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://Terrain/k1_rop02.png"
-dest_files=["res://.godot/imported/k1_rop02.png-9dea5aaba8bccead124b0d1d339914c1.s3tc.ctex"]
+dest_files=["res://.godot/imported/k1_rop02.png-9dea5aaba8bccead124b0d1d339914c1.s3tc.ctex", "res://.godot/imported/k1_rop02.png-9dea5aaba8bccead124b0d1d339914c1.etc2.ctex"]
 
 [params]
 
