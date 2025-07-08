@@ -49,6 +49,9 @@ extends CharacterBody3D
 @export var BUTTON_UP: StringName = "input_forward"
 @export var BUTTON_DOWN: StringName = "input_back"
 
+@export var SPACE_SCALE: float = 0.01
+@export var CAM_SENSITIVITY:Vector2 = Vector2(0.01, 0.01)
+
 # State
 var gsp: float = 0.0:
 	set(new_gsp):
@@ -74,6 +77,7 @@ var prev_spinning: bool = false
 var slope_normal: Vector3 = Vector3.UP
 
 var camera_smoothed_pitch: float
+var camera_default_transform: Transform3D
 
 static func rotate_toward_direction(object: Node3D, direction: Vector3, delta: float, rotation_speed: float) -> void:
 	var target_yaw: float = atan2(direction.x, direction.z)
@@ -120,6 +124,9 @@ func update_ground_info() -> void:
 func add_debug_info(info:String) -> void:
 	debug_label.text += info + "\n"
 
+func _ready() -> void:
+	camera_default_transform = camera.transform
+
 func _physics_process(delta: float) -> void:
 	debug_label.text = ""
 	
@@ -159,7 +166,6 @@ func _physics_process(delta: float) -> void:
 	
 	#This is used for measuring the change between the 
 	var cam_move_dot: float = move_dir.dot(cam_input_dir)
-	var movement_dot:float
 	var vel_move_dot: float = cam_input_dir.dot(velocity.normalized())
 	
 	add_debug_info("Cam move dot: " + str(cam_move_dot))
@@ -464,13 +470,15 @@ func _physics_process(delta: float) -> void:
 				"input_cursor_down", "input_cursor_up"
 			)
 			
-			var reset_pressed: bool = Input.is_action_just_pressed("input_rb")
+			var reset_pressed: bool = Input.is_action_pressed("input_rb")
 			
-			if not camera_movement.is_zero_approx():
+			if reset_pressed:
+				manual_cam_transform = Transform3D.IDENTITY
+			elif not camera_movement.is_zero_approx():
 				#manual camera movement; this overrides the "auto" cam, which is later
-				const camera_sensitivity:Vector2 = Vector2(0.1, 0.1)
+				const CAM_SENSITIVITY:Vector2 = Vector2(0.1, 0.1)
 				
-				camera_movement *= camera_sensitivity
+				camera_movement *= CAM_SENSITIVITY
 				#rotate the camera around the player without actually rotating the parent node in the process
 				
 				#x transform
@@ -507,7 +515,11 @@ func _physics_process(delta: float) -> void:
 			add_debug_info("Cam transform manual y" + str(manual_cam_transform.basis.y))
 			add_debug_info("Cam transform manual z" + str(manual_cam_transform.basis.z))
 			
-			camera.global_transform = global_transform * manual_cam_transform * ground_cam_transform * camera.transform
+			if reset_pressed:
+				
+				camera.global_transform = model_default.global_transform * camera_default_transform
+			else:
+				camera.global_transform = global_transform * manual_cam_transform * ground_cam_transform * camera.transform
 		else:
 			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
 
