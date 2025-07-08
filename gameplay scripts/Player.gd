@@ -197,8 +197,6 @@ func process_rotations(delta: float) -> void:
 			
 			# Camera
 			
-			var manual_cam_transform: Transform3D = Transform3D.IDENTITY
-			
 			var camera_movement: Vector2 = Input.get_vector(
 				"input_cursor_left", "input_cursor_right", 
 				"input_cursor_down", "input_cursor_up"
@@ -207,43 +205,27 @@ func process_rotations(delta: float) -> void:
 			var reset_pressed: bool = Input.is_action_pressed("input_rb")
 			
 			if reset_pressed:
-				manual_cam_transform = Transform3D.IDENTITY
+				camera.global_transform = global_transform * camera_default_transform
 			elif not camera_movement.is_zero_approx():
 				#manual camera movement; this overrides the "auto" cam, which is later
 				camera_movement *= CAM_SENSITIVITY
 				#rotate the camera around the player without actually rotating the parent node in the process
 				
+				var manual_cam_transform: Transform3D = Transform3D.IDENTITY
 				#x transform
 				manual_cam_transform = manual_cam_transform.rotated_local(GRAVITY_NORMAL, camera_movement.x)
 				#y transform
 				manual_cam_transform = manual_cam_transform.rotated_local(camera.global_basis.x.normalized(), camera_movement.y)
+				
+				camera.global_transform = global_transform * manual_cam_transform * camera.transform
 			else:
 				#TODO: "auto" cam that follows the player, gradually moving to be behind the player at 
 				#all times
 				
-				manual_cam_transform = Transform3D.IDENTITY
+				camera.global_transform = global_transform * camera.transform
 			
-			var ground_cam_transform: Transform3D = Transform3D.IDENTITY
+			#tilt_to_normal(camera, delta, 3.0, 180.0, -1.5)
 			
-			if GROUNDED:
-				tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
-				
-				#tilt_to_normal(camera, delta, 3.0, 180.0, -1.5)
-				
-				var cam_diff: Vector3 = camera.global_rotation - model_rotation_base.global_rotation
-				
-				add_debug_info("Cam diff " + str(cam_diff))
-				
-				#ground_cam_transform = ground_cam_transform.rotated_local(cam_forward, cam_diff.z)
-			else:
-				#reset the camera
-				ground_cam_transform = ground_cam_transform.rotated_local(-camera.global_basis.z.normalized(), camera.global_rotation.z)
-			
-			if reset_pressed:
-				
-				camera.global_transform = model_default.global_transform * camera_default_transform
-			else:
-				camera.global_transform = global_transform * manual_cam_transform * ground_cam_transform * camera.transform
 		else:
 			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
 
