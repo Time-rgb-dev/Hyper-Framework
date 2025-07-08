@@ -1,9 +1,8 @@
-[gd_scene load_steps=29 format=4 uid="uid://f4cgq5ixf1rn"]
+[gd_scene load_steps=27 format=4 uid="uid://f4cgq5ixf1rn"]
 
 [ext_resource type="Script" uid="uid://cunhx41o7se2j" path="res://gameplay scripts/Player.gd" id="1_e80uo"]
 [ext_resource type="Texture2D" uid="uid://bn7xp6ckci087" path="res://objects/Player/sonicmodel/Sonic v2 tex.png" id="2_e80uo"]
 [ext_resource type="Script" uid="uid://crul3wk1oiy5n" path="res://gameplay scripts/PlayerRotate.gd" id="3_e80uo"]
-[ext_resource type="Script" uid="uid://bxfqahrp8b7fi" path="res://gameplay scripts/CameraRotate.gd" id="3_kne1u"]
 [ext_resource type="AnimationLibrary" uid="uid://3s1ydgfoo3ep" path="res://objects/Player/sonicmodel/animations/SonicAnimations.tres" id="4_cxr5p"]
 [ext_resource type="Script" uid="uid://bwrvku1wuvvtq" path="res://objects/Player/RayTilt.gd" id="7_b20bf"]
 [ext_resource type="Script" uid="uid://di5jfmkkoknj7" path="res://objects/Player/label_2d.gd" id="8_i118q"]
@@ -954,11 +953,7 @@ albedo_texture = ExtResource("2_e80uo")
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hp6x6"]
 albedo_texture = ExtResource("2_e80uo")
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_b20bf"]
-radius = 0.84
-
 [sub_resource type="LabelSettings" id="LabelSettings_b20bf"]
-font_size = 30
 outline_size = 10
 outline_color = Color(0, 0, 0, 1)
 
@@ -1705,23 +1700,8 @@ libraries = {
 playback_default_blend_time = 0.5
 blend_times = [&"SonicMain/AnimJog", &"SonicMain/AnimJog", 0.026]
 
-[node name="TwistPivot" type="Node3D" parent="." node_paths=PackedStringArray("player")]
-transform = Transform3D(-1.375, 4.45832e-08, -2.02776e-07, 0, 1.34292, 0.295261, 2.07619e-07, 0.295261, -1.34292, 0, -0.0394592, -0.0317392)
-script = ExtResource("3_kne1u")
-player = NodePath("..")
-
-[node name="PitchPivot" type="Node3D" parent="TwistPivot"]
-transform = Transform3D(0.994388, 0, 1.42109e-14, -3.55271e-15, 0.988572, 0.107393, 0, -0.107393, 0.988572, 0.00113666, 0.521894, 0.883082)
-
-[node name="SpringArm3D" type="SpringArm3D" parent="TwistPivot/PitchPivot"]
-transform = Transform3D(1, -7.10543e-15, 0, 1.42109e-14, 1, 0, 0, 0, 1, -1.14902e-07, -0.15316, 0.75249)
-collision_mask = 16777215
-shape = SubResource("SphereShape3D_b20bf")
-spring_length = 8.0
-margin = 0.25
-
-[node name="Camera3D" type="Camera3D" parent="TwistPivot/PitchPivot/SpringArm3D"]
-transform = Transform3D(0.720313, 7.4607e-14, -5.04485e-13, 2.13163e-14, 0.720315, 4.47035e-08, 2.84217e-14, -2.98023e-08, 0.720315, 1.26427e-07, -0.403079, 1.97869)
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(-0.984872, 4.7433e-08, -1.40944e-07, 4.98462e-14, 0.933431, 0.314135, 1.48711e-07, 0.314135, -0.933431, -0.002, 2.392, -6.845)
 doppler_tracking = 1
 current = true
 fov = 85.0
@@ -1741,6 +1721,7 @@ offset_right = 40.0
 offset_bottom = 42.0
 size_flags_horizontal = 2
 size_flags_vertical = 2
+text = "Default Text"
 label_settings = SubResource("LabelSettings_b20bf")
 script = ExtResource("8_i118q")
 player = NodePath("../..")

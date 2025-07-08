@@ -4,10 +4,8 @@ extends CharacterBody3D
 @onready var model_default = $CollisionShape3D2/DefaultModel
 @onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
 @onready var model_rotation_base: Node3D = $CollisionShape3D2
-@onready var camera = $TwistPivot/PitchPivot/SpringArm3D/Camera3D
+@onready var camera:Camera3D = $Camera3D
 @onready var ground_ray: RayCast3D = $GroundRay
-@onready var twist = $TwistPivot
-@onready var pitch = $TwistPivot/PitchPivot
 @onready var debug_label: Label = $"CanvasLayer/Label"
 
 # Constants
@@ -100,12 +98,14 @@ func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: f
 	
 	target_pitch *= pitch_mult
 	
-	if object == twist: #TwistPivot variant code. TODO: Make this less hacky
+	if object == camera: #TwistPivot variant code. TODO: Make this less hacky
 		camera_smoothed_pitch = lerp_angle(camera_smoothed_pitch, target_pitch, delta * tilt_speed)
 		target_pitch = -camera_smoothed_pitch
 	
 	# Smoothly apply the tilt
 	object.rotation.x = lerp_angle(object.rotation.x, -target_pitch, delta * tilt_speed)
+
+
 
 func update_ground_info() -> void:
 	if ground_ray.is_colliding():
@@ -141,6 +141,7 @@ func _physics_process(delta: float) -> void:
 	var cam_basis: Basis = camera.global_basis
 	var cam_forward: Vector3 = -cam_basis.z.normalized()
 	var cam_right: Vector3 = cam_basis.x.normalized()
+	var cam_up: Vector3 = cam_basis.y.normalized()
 	
 	var cam_input_dir: Vector3 = Vector3(cam_forward * input.y + cam_right * input.x).normalized()
 	var has_input: bool = not cam_input_dir.is_zero_approx() if not input.is_zero_approx() else false
@@ -148,9 +149,9 @@ func _physics_process(delta: float) -> void:
 	add_debug_info("Input: " + str(input))
 	add_debug_info("Camera-localized Input: " + str(cam_input_dir))
 	
-	var player_forward:Vector3 = -model_rotation_base.global_basis.z.normalized()
-	var player_right:Vector3 = model_rotation_base.global_basis.x.normalized()
-	var player_input_dir:Vector3 = Vector3(player_forward * input.y + player_right * input.x).normalized()
+	var player_forward: Vector3 = -model_rotation_base.global_basis.z.normalized()
+	var player_right: Vector3 = model_rotation_base.global_basis.x.normalized()
+	var player_input_dir: Vector3 = Vector3(player_forward * input.y + player_right * input.x).normalized()
 	add_debug_info("Player-localized Input: " + str(player_input_dir))
 	
 	# Predict intended direction if no new move_dir yet
@@ -160,6 +161,7 @@ func _physics_process(delta: float) -> void:
 	
 	#This is used for measuring the change between the 
 	var cam_move_dot: float = move_dir.dot(cam_input_dir)
+	var movement_dot:float
 	var vel_move_dot: float = cam_input_dir.dot(velocity.normalized())
 	
 	add_debug_info("Cam move dot: " + str(cam_move_dot))
@@ -181,8 +183,7 @@ func _physics_process(delta: float) -> void:
 				rotate_toward_direction(model_default, last_input_dir, delta * 3, 10.0)
 			
 			if abs_gsp > SPINDASH_SLOWDOWN_THRESHOLD:
-				var stop_friction: float = 1.0 * abs_gsp / 10.0
-				gsp = move_toward(gsp, 0.0, stop_friction)
+				gsp = move_toward(gsp, 0.0, abs_gsp / 10.0)
 			else:
 				spindash_charge = clampf(spindash_charge + SPINDASH_CHARGE_RATE * delta, 0, SPINDASH_MAX)
 			add_debug_info("Spindash Charge: " + str(roundf(spindash_charge)))
@@ -345,13 +346,6 @@ func _physics_process(delta: float) -> void:
 			velocity.z = move_vector.z
 		
 		if JUMPING:
-			#var slope_strength: float = clampf(move_dir.dot(-slope_normal), -1.0, 1.0)
-			
-			# Reduce horizontal speed when jumping uphill steeply
-			#var forward_speed_loss: float = slope_strength * 0.3 * gsp
-			#gsp = clampf(gsp - forward_speed_loss, -MAXSPD, MAXSPD)
-			#gsp = clampf(gsp - forward_speed_loss, -MAXSPD, MAXSPD)
-			
 			velocity += slope_normal * JUMP_VELOCITY
 		
 		move_and_slide()
@@ -465,13 +459,60 @@ func _physics_process(delta: float) -> void:
 	if move_dir != Vector3.ZERO:
 		if not SKIDDING:
 			rotate_toward_direction(model_default, move_dir, delta, 10.0)
+			
+			# Camera
+			
+			var manual_cam_transform: Transform3D = Transform3D.IDENTITY
+			
+			var camera_movement: Vector2 = Input.get_vector(
+				"input_cursor_left", "input_cursor_right", 
+				"input_cursor_down", "input_cursor_up"
+			)
+			
+			var reset_pressed: bool = Input.is_action_just_pressed("input_rb")
+			
+			if not camera_movement.is_zero_approx():
+				#manual camera movement; this overrides the "auto" cam, which is later
+				const camera_sensitivity:Vector2 = Vector2(0.1, 0.1)
+				
+				camera_movement *= camera_sensitivity
+				#rotate the camera around the player without actually rotating the parent node in the process
+				
+				#x transform
+				manual_cam_transform = manual_cam_transform.rotated_local(GRAVITY_NORMAL, camera_movement.x)
+				#y transform
+				manual_cam_transform = manual_cam_transform.rotated_local(cam_right, camera_movement.y)
+			else:
+				#TODO: "auto" cam that follows the player, gradually moving to be behind the player at 
+				#all times
+				
+				manual_cam_transform = Transform3D.IDENTITY
+			
+			var ground_cam_transform: Transform3D = Transform3D.IDENTITY
+			
 			if GROUNDED:
-				tilt_to_normal(twist, delta, 3.0, 180.0, -1.5)
-				
-				if Input.is_action_just_pressed("input_lb"):
-					twist.rotation = Vector3.ZERO
-				
 				tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
+				
+				#tilt_to_normal(camera, delta, 3.0, 180.0, -1.5)
+				
+				var cam_diff: Vector3 = camera.global_rotation - model_rotation_base.global_rotation
+				
+				add_debug_info("Cam diff " + str(cam_diff))
+				
+				#ground_cam_transform = ground_cam_transform.rotated_local(cam_forward, cam_diff.z)
+				
+				
+				#camera.rotation.z = model_rotation_base.rotation.z
+			else:
+				#reset the camera
+				ground_cam_transform = ground_cam_transform.rotated_local(cam_forward, camera.global_rotation.z)
+				
+			
+			add_debug_info("Cam transform manual x" + str(manual_cam_transform.basis.x))
+			add_debug_info("Cam transform manual y" + str(manual_cam_transform.basis.y))
+			add_debug_info("Cam transform manual z" + str(manual_cam_transform.basis.z))
+			
+			camera.global_transform = global_transform * manual_cam_transform * ground_cam_transform * camera.transform
 		else:
 			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
 

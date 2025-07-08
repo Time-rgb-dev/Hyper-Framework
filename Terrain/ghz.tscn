@@ -29,7 +29,7 @@ transform = Transform3D(1.2, 0, 0, 0, 1.2, 0, 0, 0, 1.2, 0, 0, 0)
 environment = SubResource("Environment_s5fof")
 
 [node name="Player" parent="." instance=ExtResource("2_s5fof")]
-transform = Transform3D(1.01536, 0, 0, 0, 1.01536, 0, 0, 0, 1.01536, 77.7671, 4.1395, -26.0271)
+transform = Transform3D(1.01536, 0, 0, 0, 1.01536, 0, 0, 0, 1.01536, 0, 3.56435, 0)
 
 [node name="Sketchfab_Scene" parent="." instance=ExtResource("1_u5hmi")]
 transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0)
