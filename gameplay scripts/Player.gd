@@ -105,8 +105,6 @@ func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: f
 	# Smoothly apply the tilt
 	object.rotation.x = lerp_angle(object.rotation.x, -target_pitch, delta * tilt_speed)
 
-
-
 func update_ground_info() -> void:
 	if ground_ray.is_colliding():
 		GROUNDED = true
@@ -215,10 +213,7 @@ func _physics_process(delta: float) -> void:
 		if not SPINDASHING:
 			# Get slope tilt from model forward tilt
 			var forward_vec: Vector3 = -model_default.transform.basis.z.normalized()
-			var slope_strength: float = forward_vec.y
-			
-			if absf(slope_strength) < 0.01:
-				slope_strength = 0.0
+			var slope_strength: float = snappedf(forward_vec.y, 0.01)
 			
 			add_debug_info("Slope strength: " + str(slope_strength))
 			add_debug_info("Slope magnitude: " + str(slope_mag_dot))

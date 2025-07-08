@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Fusion Framework"
+config/name="Hyper Framework"
 config/description="A 3D Sonic framework aiming to be classic-accurates"
 run/main_scene="uid://c6jtj12pxnykp"
 config/features=PackedStringArray("4.4", "GL Compatibility")
