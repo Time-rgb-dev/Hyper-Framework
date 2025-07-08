@@ -50,7 +50,7 @@ extends CharacterBody3D
 @export var BUTTON_DOWN: StringName = "input_back"
 
 @export var SPACE_SCALE: float = 0.01
-@export var CAM_SENSITIVITY:Vector2 = Vector2(0.01, 0.01)
+@export var CAM_SENSITIVITY:Vector2 = Vector2(0.1, 0.1)
 
 # State
 var gsp: float = 0.0:
@@ -79,13 +79,15 @@ var slope_normal: Vector3 = Vector3.UP
 var camera_smoothed_pitch: float
 var camera_default_transform: Transform3D
 
+const debug_enabled: bool = true
+
 static func rotate_toward_direction(object: Node3D, direction: Vector3, delta: float, rotation_speed: float) -> void:
 	var target_yaw: float = atan2(direction.x, direction.z)
 	var current_yaw: float = object.rotation.y
 	object.rotation.y = lerp_angle(current_yaw, target_yaw, delta * rotation_speed)
 
 func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: float, pitch_mult: float) -> void:
-	var forward: Vector3 = -object.transform.basis.z.normalized()
+	var forward: Vector3 = -object.basis.z.normalized()
 
 	# Check if on flat ground
 	if slope_normal.dot(GRAVITY_NORMAL) >= 0.999:
@@ -122,7 +124,128 @@ func update_ground_info() -> void:
 		ground_ray.look_at(ground_ray.global_transform.origin - forward)
 
 func add_debug_info(info:String) -> void:
-	debug_label.text += info + "\n"
+	if debug_enabled:
+		debug_label.text += info + "\n"
+
+func process_animations() -> void:
+	spinball_mesh.visible = SPINNING and not DROPDASHING
+	
+	# --- Detect Spin State Transitions ---
+	if GROUNDED:
+		if SPINNING and not prev_spinning and not JUMPING:
+			anim_player.play("SonicMain/AnimRollEnd")
+		elif not SPINNING and prev_spinning and Input.is_action_pressed(BUTTON_ROLL):
+			anim_player.play("SonicMain/AnimRollStart")
+	
+	prev_spinning = SPINNING
+	
+	if not anim_player.is_playing() or (
+		anim_player.current_animation != "SonicMain/AnimRollStart"
+		and anim_player.current_animation != "SonicMain/AnimRollEnd"
+	):
+		if SKIDDING:
+			anim_player.play("SonicMain/AnimSkid1")
+			anim_player.speed_scale = 1.0  # Default run speed
+		elif not GROUNDED:
+			if SPINNING:
+				anim_player.play("SonicMain/AnimSpin")
+				anim_player.speed_scale = 1.0  # Default run speed
+			else:
+				if velocity.y > 3.0:
+					anim_player.play("SonicMain/AnimAirUp")
+					anim_player.speed_scale = 1.0  # Default run speed
+				elif velocity.y < -4.0:
+					anim_player.play("SonicMain/AnimAirDown")
+					anim_player.speed_scale = 1.0  # Default run speed
+				else:
+					anim_player.play("SonicMain/AnimAirMid")
+					anim_player.speed_scale = 1.0  # Default run speed
+		elif CROUCHING:
+			if not SPINDASHING:
+				anim_player.play("SonicMain/AnimCrouch")
+				anim_player.speed_scale = 1.0  # Default run speed
+			else:
+				anim_player.play("SonicMain/AnimSpin")
+				anim_player.speed_scale = 1.0  # Default run speed
+		elif SPINNING:
+			anim_player.play("SonicMain/AnimSpin")
+			anim_player.speed_scale = 1.0  # Default run speed
+		elif abs_gsp > 65:
+			anim_player.play("SonicMain/AnimPeelout")
+			var peelout_speed_scale = lerpf(0.5, 2.0, clampf(abs_gsp / 120.0, 0.0, 1.0))
+			anim_player.speed_scale = peelout_speed_scale
+		elif abs_gsp > 25:
+			anim_player.play("SonicMain/AnimRun")
+		# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
+			var run_speed_scale = lerpf(0.0, 2.0, clampf(abs_gsp / 65.0, 0.0, 1.0))
+			anim_player.speed_scale = run_speed_scale
+		elif abs_gsp > 1:
+			anim_player.play("SonicMain/AnimJog")
+
+			# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
+			anim_player.speed_scale = 1.0  # Default run speed
+			var walk_speed_scale: float = lerpf(0.05, 1.0, clampf(abs_gsp / 15.0, 0.0, 1.0))
+			anim_player.speed_scale = walk_speed_scale
+		else:
+			anim_player.play("SonicMain/AnimIdle")
+			anim_player.speed_scale = 1.0
+
+func process_rotations(delta: float) -> void:
+	if move_dir != Vector3.ZERO:
+		if not SKIDDING:
+			rotate_toward_direction(model_default, move_dir, delta, 10.0)
+			
+			# Camera
+			
+			var manual_cam_transform: Transform3D = Transform3D.IDENTITY
+			
+			var camera_movement: Vector2 = Input.get_vector(
+				"input_cursor_left", "input_cursor_right", 
+				"input_cursor_down", "input_cursor_up"
+			)
+			
+			var reset_pressed: bool = Input.is_action_pressed("input_rb")
+			
+			if reset_pressed:
+				manual_cam_transform = Transform3D.IDENTITY
+			elif not camera_movement.is_zero_approx():
+				#manual camera movement; this overrides the "auto" cam, which is later
+				camera_movement *= CAM_SENSITIVITY
+				#rotate the camera around the player without actually rotating the parent node in the process
+				
+				#x transform
+				manual_cam_transform = manual_cam_transform.rotated_local(GRAVITY_NORMAL, camera_movement.x)
+				#y transform
+				manual_cam_transform = manual_cam_transform.rotated_local(camera.global_basis.x.normalized(), camera_movement.y)
+			else:
+				#TODO: "auto" cam that follows the player, gradually moving to be behind the player at 
+				#all times
+				
+				manual_cam_transform = Transform3D.IDENTITY
+			
+			var ground_cam_transform: Transform3D = Transform3D.IDENTITY
+			
+			if GROUNDED:
+				tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
+				
+				#tilt_to_normal(camera, delta, 3.0, 180.0, -1.5)
+				
+				var cam_diff: Vector3 = camera.global_rotation - model_rotation_base.global_rotation
+				
+				add_debug_info("Cam diff " + str(cam_diff))
+				
+				#ground_cam_transform = ground_cam_transform.rotated_local(cam_forward, cam_diff.z)
+			else:
+				#reset the camera
+				ground_cam_transform = ground_cam_transform.rotated_local(-camera.global_basis.z.normalized(), camera.global_rotation.z)
+			
+			if reset_pressed:
+				
+				camera.global_transform = model_default.global_transform * camera_default_transform
+			else:
+				camera.global_transform = global_transform * manual_cam_transform * ground_cam_transform * camera.transform
+		else:
+			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
 
 func _ready() -> void:
 	camera_default_transform = camera.transform
@@ -142,21 +265,19 @@ func _physics_process(delta: float) -> void:
 	
 	# Input
 	var input: Vector2 = Input.get_vector(BUTTON_LEFT, BUTTON_RIGHT, BUTTON_DOWN, BUTTON_UP)
+	var input_3: Vector3 = Vector3(
+		input.x,
+		0.0, 
+		-input.y
+	)
 	
-	var cam_basis: Basis = camera.global_basis
-	var cam_forward: Vector3 = -cam_basis.z.normalized()
-	var cam_right: Vector3 = cam_basis.x.normalized()
-	var cam_up: Vector3 = cam_basis.y.normalized()
+	var cam_input_dir: Vector3 = camera.global_basis * input_3
+	var player_input_dir: Vector3 = model_rotation_base.global_basis * input_3
 	
-	var cam_input_dir: Vector3 = Vector3(cam_forward * input.y + cam_right * input.x).normalized()
 	var has_input: bool = not cam_input_dir.is_zero_approx() if not input.is_zero_approx() else false
 	
 	add_debug_info("Input: " + str(input))
 	add_debug_info("Camera-localized Input: " + str(cam_input_dir))
-	
-	var player_forward: Vector3 = -model_rotation_base.global_basis.z.normalized()
-	var player_right: Vector3 = model_rotation_base.global_basis.x.normalized()
-	var player_input_dir: Vector3 = Vector3(player_forward * input.y + player_right * input.x).normalized()
 	add_debug_info("Player-localized Input: " + str(player_input_dir))
 	
 	# Predict intended direction if no new move_dir yet
@@ -456,131 +577,6 @@ func _physics_process(delta: float) -> void:
 	if has_input:
 		last_input_dir = cam_input_dir
 	
-	# --- Model rotation and tilt ---
-	if move_dir != Vector3.ZERO:
-		if not SKIDDING:
-			rotate_toward_direction(model_default, move_dir, delta, 10.0)
-			
-			# Camera
-			
-			var manual_cam_transform: Transform3D = Transform3D.IDENTITY
-			
-			var camera_movement: Vector2 = Input.get_vector(
-				"input_cursor_left", "input_cursor_right", 
-				"input_cursor_down", "input_cursor_up"
-			)
-			
-			var reset_pressed: bool = Input.is_action_pressed("input_rb")
-			
-			if reset_pressed:
-				manual_cam_transform = Transform3D.IDENTITY
-			elif not camera_movement.is_zero_approx():
-				#manual camera movement; this overrides the "auto" cam, which is later
-				const CAM_SENSITIVITY:Vector2 = Vector2(0.1, 0.1)
-				
-				camera_movement *= CAM_SENSITIVITY
-				#rotate the camera around the player without actually rotating the parent node in the process
-				
-				#x transform
-				manual_cam_transform = manual_cam_transform.rotated_local(GRAVITY_NORMAL, camera_movement.x)
-				#y transform
-				manual_cam_transform = manual_cam_transform.rotated_local(cam_right, camera_movement.y)
-			else:
-				#TODO: "auto" cam that follows the player, gradually moving to be behind the player at 
-				#all times
-				
-				manual_cam_transform = Transform3D.IDENTITY
-			
-			var ground_cam_transform: Transform3D = Transform3D.IDENTITY
-			
-			if GROUNDED:
-				tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
-				
-				#tilt_to_normal(camera, delta, 3.0, 180.0, -1.5)
-				
-				var cam_diff: Vector3 = camera.global_rotation - model_rotation_base.global_rotation
-				
-				add_debug_info("Cam diff " + str(cam_diff))
-				
-				#ground_cam_transform = ground_cam_transform.rotated_local(cam_forward, cam_diff.z)
-				
-				
-				#camera.rotation.z = model_rotation_base.rotation.z
-			else:
-				#reset the camera
-				ground_cam_transform = ground_cam_transform.rotated_local(cam_forward, camera.global_rotation.z)
-				
-			
-			add_debug_info("Cam transform manual x" + str(manual_cam_transform.basis.x))
-			add_debug_info("Cam transform manual y" + str(manual_cam_transform.basis.y))
-			add_debug_info("Cam transform manual z" + str(manual_cam_transform.basis.z))
-			
-			if reset_pressed:
-				
-				camera.global_transform = model_default.global_transform * camera_default_transform
-			else:
-				camera.global_transform = global_transform * manual_cam_transform * ground_cam_transform * camera.transform
-		else:
-			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
-
-	spinball_mesh.visible = SPINNING and not DROPDASHING
-
-	# --- Detect Spin State Transitions ---
-	if GROUNDED:
-		if SPINNING and not prev_spinning and not JUMPING:
-			anim_player.play("SonicMain/AnimRollEnd")
-		elif not SPINNING and prev_spinning and Input.is_action_pressed(BUTTON_ROLL):
-			anim_player.play("SonicMain/AnimRollStart")
+	process_rotations(delta)
 	
-	prev_spinning = SPINNING
-	
-	if not anim_player.is_playing() or (
-		anim_player.current_animation != "SonicMain/AnimRollStart"
-		and anim_player.current_animation != "SonicMain/AnimRollEnd"
-	):
-		if SKIDDING:
-			anim_player.play("SonicMain/AnimSkid1")
-			anim_player.speed_scale = 1.0  # Default run speed
-		elif not GROUNDED:
-			if SPINNING:
-				anim_player.play("SonicMain/AnimSpin")
-				anim_player.speed_scale = 1.0  # Default run speed
-			else:
-				if velocity.y > 3.0:
-					anim_player.play("SonicMain/AnimAirUp")
-					anim_player.speed_scale = 1.0  # Default run speed
-				elif velocity.y < -4.0:
-					anim_player.play("SonicMain/AnimAirDown")
-					anim_player.speed_scale = 1.0  # Default run speed
-				else:
-					anim_player.play("SonicMain/AnimAirMid")
-					anim_player.speed_scale = 1.0  # Default run speed
-		elif CROUCHING:
-			if not SPINDASHING:
-				anim_player.play("SonicMain/AnimCrouch")
-				anim_player.speed_scale = 1.0  # Default run speed
-			else:
-				anim_player.play("SonicMain/AnimSpin")
-				anim_player.speed_scale = 1.0  # Default run speed
-		elif SPINNING:
-			anim_player.play("SonicMain/AnimSpin")
-			anim_player.speed_scale = 1.0  # Default run speed
-		elif abs_gsp > 65:
-			anim_player.play("SonicMain/AnimPeelout")
-			var peelout_speed_scale = lerpf(0.5, 2.0, clampf(abs_gsp / 120.0, 0.0, 1.0))
-			anim_player.speed_scale = peelout_speed_scale
-		elif abs_gsp > 25:
-			anim_player.play("SonicMain/AnimRun")
-		# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
-			var run_speed_scale = lerpf(0.0, 2.0, clampf(abs_gsp / 65.0, 0.0, 1.0))
-			anim_player.speed_scale = run_speed_scale
-		elif abs_gsp > 1:
-			anim_player.play("SonicMain/AnimJog")
-
-			# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
-			anim_player.speed_scale = 1.0  # Default run speed
-			var walk_speed_scale: float = lerpf(0.05, 1.0, clampf(abs_gsp / 15.0, 0.0, 1.0))
-			anim_player.speed_scale = walk_speed_scale
-		else:
-			anim_player.play("SonicMain/AnimIdle")
-			anim_player.speed_scale = 1.0
+	process_animations()
