@@ -1,11 +1,8 @@
-[gd_scene load_steps=27 format=4 uid="uid://f4cgq5ixf1rn"]
+[gd_scene load_steps=24 format=4 uid="uid://f4cgq5ixf1rn"]
 
 [ext_resource type="Script" uid="uid://cunhx41o7se2j" path="res://gameplay scripts/Player.gd" id="1_e80uo"]
 [ext_resource type="Texture2D" uid="uid://bn7xp6ckci087" path="res://objects/Player/sonicmodel/Sonic v2 tex.png" id="2_e80uo"]
-[ext_resource type="Script" uid="uid://crul3wk1oiy5n" path="res://gameplay scripts/PlayerRotate.gd" id="3_e80uo"]
 [ext_resource type="AnimationLibrary" uid="uid://3s1ydgfoo3ep" path="res://objects/Player/sonicmodel/animations/SonicAnimations.tres" id="4_cxr5p"]
-[ext_resource type="Script" uid="uid://bwrvku1wuvvtq" path="res://objects/Player/RayTilt.gd" id="7_b20bf"]
-[ext_resource type="Script" uid="uid://di5jfmkkoknj7" path="res://objects/Player/label_2d.gd" id="8_i118q"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_e80uo"]
 margin = 1.682
@@ -973,7 +970,6 @@ debug_color = Color(0, 0.6, 0.701961, 1)
 
 [node name="DefaultModel" type="Node3D" parent="CollisionShape3D2"]
 transform = Transform3D(157.994, 0, 1.07308e-05, 0, 141.237, 0, 1.38123e-05, 0, -122.746, -0.00679282, -0.772566, 0)
-script = ExtResource("3_e80uo")
 
 [node name="GeneralSkeleton" type="Skeleton3D" parent="CollisionShape3D2/DefaultModel"]
 unique_name_in_owner = true
@@ -1712,16 +1708,13 @@ target_position = Vector3(0, -5, 0)
 collide_with_areas = true
 debug_shape_custom_color = Color(0.25, 0.525, 1, 1)
 debug_shape_thickness = 5
-script = ExtResource("7_b20bf")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
-[node name="Label" type="Label" parent="CanvasLayer" node_paths=PackedStringArray("player")]
+[node name="Label" type="Label" parent="CanvasLayer"]
 offset_right = 40.0
 offset_bottom = 42.0
 size_flags_horizontal = 2
 size_flags_vertical = 2
 text = "Default Text"
 label_settings = SubResource("LabelSettings_b20bf")
-script = ExtResource("8_i118q")
-player = NodePath("../..")
