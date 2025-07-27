@@ -1,8 +1,11 @@
 extends CharacterBody3D
 
 @onready var anim_player: AnimationPlayer = $CollisionShape3D2/DefaultModel/GeneralSkeleton/AnimationPlayer
+##The player's model. This is a child of [member model_rotation_base], so it only has to rotate on its local y 
+##axis to face the direction the player is giving input to.
 @onready var model_default = $CollisionShape3D2/DefaultModel
 @onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
+##The base for the player's rotation. This will be rotated to align to slopes.
 @onready var model_rotation_base: Node3D = $CollisionShape3D2
 @onready var camera:Camera3D = $Camera3D
 @onready var ground_ray: RayCast3D = $GroundRay
@@ -20,6 +23,7 @@ extends CharacterBody3D
 
 @export var JUMP_VELOCITY: float = 45.0
 @export var GRAVITY: float = 75.0
+##The normal (up direction) of gravity
 @export var GRAVITY_NORMAL: Vector3 = Vector3.UP
 
 @export var SLOPE_DOWNHILL_BOOST: float = 100.0
@@ -43,11 +47,14 @@ extends CharacterBody3D
 @export var ROLLTYPE = 1
 
 @export var BUTTON_ROLL: StringName = &"input_rt"
-@export var BUTTON_JUMP: StringName = &"input_a"
-@export var BUTTON_LEFT: StringName = "input_left"
-@export var BUTTON_RIGHT: StringName = "input_right"
-@export var BUTTON_UP: StringName = "input_forward"
-@export var BUTTON_DOWN: StringName = "input_back"
+@export var BUTTON_JUMP: StringName = &"input_lt"
+@export var BUTTON_LEFT: StringName = &"input_left"
+@export var BUTTON_RIGHT: StringName = &"input_right"
+@export var BUTTON_UP: StringName = &"input_forward"
+@export var BUTTON_DOWN: StringName = &"input_back"
+
+@export var DEBUG_DOWNHILL: StringName = &"input_x"
+@export var DEBUG_UPHILL:StringName = "input_y"
 
 @export var SPACE_SCALE: float = 0.01
 @export var CAM_SENSITIVITY:Vector2 = Vector2(0.1, 0.1)
@@ -57,11 +64,19 @@ var gsp: float = 0.0:
 	set(new_gsp):
 		gsp = new_gsp
 		abs_gsp = absf(gsp)
-var abs_gsp: float = 0.0
-var move_dir = Vector3.ZERO
-var last_input_dir = Vector3.ZERO
-var GROUNDED: bool = true
 
+var abs_gsp: float = 0.0
+
+##The direction the player is moving, on the x and z axes.
+var move_dir: Vector3 = Vector3.ZERO
+##This is the raw input of the player rotated to align to the POV of the camera. 
+##For example, z+ will always be going away from the camera and x+ will always be going right to the camera.
+var last_cam_input_dir: Vector3 = Vector3.ZERO
+##This is the raw input of the player rotated to align to the POV of the player. 
+##For example, z+ will always be forward to the player and x+ will always be right to the player.
+var last_player_input_dir: Vector3 = Vector3.ZERO
+
+var GROUNDED: bool = true
 var SPINNING: bool = false
 var CROUCHING: bool = false
 var JUMPING: bool  = false
@@ -74,13 +89,18 @@ var roll_toggle_lock: bool = false
 
 var prev_spinning: bool = false
 
-var slope_normal: Vector3 = Vector3.UP
+var slope_normal: Vector3 = Vector3.UP:
+	set(new_normal):
+		slope_normal = new_normal
+		slope_mag_dot = slope_normal.dot(GRAVITY_NORMAL)
+var slope_mag_dot:float
 
 var camera_smoothed_pitch: float
 var camera_default_transform: Transform3D
 
 const debug_enabled: bool = true
 
+##Rotate an object towards a specific direction. Used to rotate the player model to face the direction of the player's input
 static func rotate_toward_direction(object: Node3D, direction: Vector3, delta: float, rotation_speed: float) -> void:
 	var target_yaw: float = atan2(direction.x, direction.z)
 	var current_yaw: float = object.rotation.y
@@ -90,7 +110,7 @@ func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: f
 	var forward: Vector3 = -object.basis.z.normalized()
 
 	# Check if on flat ground
-	if slope_normal.dot(GRAVITY_NORMAL) >= 0.999:
+	if slope_mag_dot >= 0.999:
 		# Smoothly reset tilt to 0
 		object.rotation.x = lerp_angle(object.rotation.x, 0.0, delta * tilt_speed)
 		return
@@ -114,6 +134,12 @@ func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: f
 func add_debug_info(info:String) -> void:
 	if debug_enabled:
 		debug_label.text += info + "\n"
+
+func readable_vector(input:Vector3) -> String:
+	return str(input.snappedf(0.01))
+
+func readable_float(input:float) -> String:
+	return str(snappedf(input, 0.01))
 
 func process_animations() -> void:
 	spinball_mesh.visible = SPINNING and not DROPDASHING
@@ -226,40 +252,34 @@ func _physics_process(delta: float) -> void:
 	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
 	
 	if not axis.is_zero_approx():
-		var quat_rotate: Quaternion = Quaternion(axis, acos(slope_normal.dot(GRAVITY_NORMAL)))
+		var quat_rotate: Quaternion = Quaternion(axis, acos(slope_mag_dot))
 		model_rotation_base.rotation = quat_rotate.get_euler()
 	else:
 		# Floor normal and up vector are the same (flat ground)
 		model_rotation_base.rotation = Vector3.ZERO
 	
 	# Input
-	var input: Vector2 = Input.get_vector(BUTTON_LEFT, BUTTON_RIGHT, BUTTON_DOWN, BUTTON_UP)
+	var input: Vector2 = Input.get_vector(BUTTON_LEFT, BUTTON_RIGHT, BUTTON_UP, BUTTON_DOWN)
 	var input_3: Vector3 = Vector3(
 		input.x,
 		0.0, 
-		-input.y
+		input.y
 	)
 	
-	var cam_input_dir: Vector3 = camera.global_basis * input_3
-	var player_input_dir: Vector3 = model_rotation_base.global_basis * input_3
+	var cam_input_dir: Vector3 = (camera.global_basis * input_3).normalized()
+	var player_input_dir: Vector3 = (model_default.global_basis * input_3).normalized()
 	
 	var has_input: bool = not cam_input_dir.is_zero_approx() if not input.is_zero_approx() else false
 	
-	add_debug_info("Input Vector: " + str(input_3))
-	add_debug_info("Camera-localized Input: " + str(cam_input_dir))
-	add_debug_info("Player-localized Input: " + str(player_input_dir))
+	add_debug_info("Input Vector: " + readable_vector(input_3))
+	add_debug_info("Camera-localized Input: " + readable_vector(cam_input_dir))
+	add_debug_info("Player-localized Input: " + readable_vector(player_input_dir))
 	
-	# Predict intended direction if no new move_dir yet
-	if has_input and move_dir.is_zero_approx():
-		#move_dir = cam_input_dir
-		move_dir = player_input_dir
-	
-	#This is used for measuring the change between the 
 	var cam_move_dot: float = move_dir.dot(cam_input_dir)
 	var vel_move_dot: float = cam_input_dir.dot(velocity.normalized())
 	
-	add_debug_info("Cam move dot: " + str(cam_move_dot))
-	add_debug_info("Vel move dot: " + str(vel_move_dot))
+	add_debug_info("Cam move dot: " + readable_float(cam_move_dot))
+	add_debug_info("Vel move dot: " + readable_float(vel_move_dot))
 	
 	if GROUNDED:
 		#STEP 1: Check for crouching, balancing, etc.
@@ -275,15 +295,15 @@ func _physics_process(delta: float) -> void:
 				spindash_charge = gsp * 0.55
 			
 			if has_input:
-				rotate_toward_direction(model_default, last_input_dir, delta * 3, 10.0)
+				rotate_toward_direction(model_default, last_cam_input_dir, delta * 3, 10.0)
 			
 			if abs_gsp > SPINDASH_SLOWDOWN_THRESHOLD:
 				gsp = move_toward(gsp, 0.0, abs_gsp / 10.0)
 			else:
 				spindash_charge = clampf(spindash_charge + SPINDASH_CHARGE_RATE * delta, 0, SPINDASH_MAX)
-			add_debug_info("Spindash Charge: " + str(roundf(spindash_charge)))
+			add_debug_info("Spindash Charge: " + readable_float(spindash_charge))
 		elif SPINDASHING:
-			var dash_dir: Vector3 = cam_input_dir if has_input else last_input_dir
+			var dash_dir: Vector3 = cam_input_dir if has_input else last_cam_input_dir
 			if not dash_dir.is_zero_approx():
 				move_dir = dash_dir
 				gsp = spindash_charge * SPINDASH_RELEASE_MULT
@@ -299,50 +319,49 @@ func _physics_process(delta: float) -> void:
 		
 		#STEP 3: Slope factors
 		
-		add_debug_info("Slope Normal " + str(slope_normal))
+		add_debug_info("Slope Normal " + readable_vector(slope_normal))
 		
-		#negative if the ground is a ceiling
-		var slope_mag_dot: float = slope_normal.dot(GRAVITY_NORMAL)
 		# positive if the slope and movement are in the same direction;
 		#ie. if the player is running downhill
-		var slope_dir_dot: float = model_rotation_base.global_rotation.normalized().dot(slope_normal)
+		#var slope_dir_dot: float = move_dir.dot(slope_normal) #works for loops if running towards camera, downhill is always towards camera
+		var slope_dir_dot: float = last_player_input_dir.dot(slope_normal)
 		
-		add_debug_info("Ground Angle " + str(rad_to_deg(acos(slope_mag_dot))))
+		add_debug_info("Ground Angle " + readable_float(rad_to_deg(acos(slope_mag_dot))))
 		
 		if not SPINDASHING:
 			# Get slope tilt from model forward tilt
-			var forward_vec: Vector3 = -model_default.basis.z.normalized()
-			var slope_strength: float = forward_vec.y
+			var slope_angle:float = acos(slope_mag_dot)
 			
-			
-			
-			add_debug_info("Slope strength: " + str(slope_strength))
-			add_debug_info("Slope magnitude: " + str(slope_mag_dot))
-			add_debug_info("Slope direction: " + str(slope_dir_dot))
+			add_debug_info("Slope magnitude: " + readable_float(slope_mag_dot))
+			add_debug_info("Slope direction: " + readable_float(slope_dir_dot))
+			add_debug_info("Slope angle: " + readable_float(rad_to_deg(slope_angle)))
 			
 			#slope factors do NOT apply on ceilings. 
-			if slope_mag_dot < 1.0 and slope_mag_dot > -0.5:
+			#if slope_mag_dot < 1.0 and slope_mag_dot > -0.5:
+			if slope_mag_dot < 1.0 and slope_mag_dot > 0.0:
+				var downhill_factor:float 
+				var uphill_factor:float
+				
 				if SPINNING:
-					if slope_dir_dot: # Downhill
-						add_debug_info("SPINNING DOWNHILL")
-						gsp += absf(slope_strength) * SPIN_SLOPE_BOOST * delta
-					else: # Uphill
-						add_debug_info("SPINNING UPHILL")
-						gsp -= slope_strength * SPIN_SLOPE_SLOW * delta
+					downhill_factor = SPIN_SLOPE_BOOST
+					uphill_factor = SPIN_SLOPE_SLOW
 				else:
-					if slope_dir_dot: # Downhill
-						add_debug_info("RUNNING DOWNHILL")
-						gsp -= absf(slope_strength) * SLOPE_DOWNHILL_BOOST * delta
-					else: # Uphill
-						add_debug_info("RUNNING UP THAT HILL") #kudos if you pick up the ref :trol:
-						gsp += slope_strength * SLOPE_UPHILL_SLOW * delta
-			
+					uphill_factor = SLOPE_UPHILL_SLOW
+					downhill_factor = SLOPE_DOWNHILL_BOOST
+				
+				if slope_dir_dot < 0 or Input.is_action_pressed(DEBUG_DOWNHILL): # Downhill
+					add_debug_info("RUNNING DOWNHILL")
+					gsp += slope_angle * downhill_factor * delta
+				elif slope_dir_dot > 0 or Input.is_action_pressed(DEBUG_DOWNHILL): # Uphill
+					add_debug_info("RUNNING UP THAT HILL") #kudos if you pick up the ref :trol:
+					gsp -= slope_angle * uphill_factor * delta
 			
 			# Clamp slope speed
 			gsp = clampf(gsp, -MAXSPD, MAXSPD)
 		else:
 			#WIP: Keep the player from sliding during a spindash
 			gsp = 0
+			velocity = Vector3.ZERO
 		
 		
 		#STEP 4: Check for starting a jump
@@ -401,7 +420,7 @@ func _physics_process(delta: float) -> void:
 		#STEP 7: Push/wall sensors
 		
 		if is_on_wall():
-			var forward: Vector3 = -model_default.global_transform.basis.z.normalized()
+			var forward: Vector3 = -model_default.global_basis.z.normalized()
 			var wall_normal: Vector3 = get_wall_normal()
 			var wall_dot: float = forward.dot(wall_normal)
 			
@@ -432,7 +451,7 @@ func _physics_process(delta: float) -> void:
 		#STEP 10: Move the player (apply gsp to velocity)
 		gsp = clampf(gsp, -MAXSPD, MAXSPD)
 		
-		add_debug_info("Ground Speed: " + str(gsp))
+		add_debug_info("Ground Speed: " + readable_float(gsp))
 		
 		if not SPINDASHING:
 			var move_vector: Vector3 = move_dir
@@ -457,26 +476,27 @@ func _physics_process(delta: float) -> void:
 		if GROUNDED:
 			apply_floor_snap()
 			slope_normal = ground_ray.get_collision_normal()
+		else:
+			slope_normal = GRAVITY_NORMAL
 		
 		#STEP 12: Check slipping/falling
 		
-		var threshold: float = 10.0
-		
-		slope_mag_dot = slope_normal.dot(GRAVITY_NORMAL)
-		
-		# If on a steep slope (close to wall) and vertical speed along slope is low, detach
-		if abs_gsp < threshold:
-			if slope_mag_dot < 0: 
-				GROUNDED = false
-				up_direction = GRAVITY_NORMAL
-				add_debug_info("GROUND UNSTICK")
+		if GROUNDED:
+			var threshold: float = 10.0
+			
+			# If on a steep slope (close to wall) and vertical speed along slope is low, detach
+			if abs_gsp < threshold:
+				if slope_mag_dot < 0: 
+					GROUNDED = false
+					up_direction = GRAVITY_NORMAL
+					add_debug_info("GROUND UNSTICK")
+				else:
+					add_debug_info("GROUND NEUTRAL")
 			else:
-				add_debug_info("GROUND NEUTRAL")
-		else:
-			up_direction = slope_normal
-			add_debug_info("GROUND STICK")
-			# Optionally reset or reduce speed when detaching
-			# velocity.y = 0
+				up_direction = slope_normal
+				add_debug_info("GROUND STICK")
+				# Optionally reset or reduce speed when detaching
+				# velocity.y = 0
 	
 	else: #not GROUNDED
 		#STEP 1: check for jump button release
@@ -491,13 +511,13 @@ func _physics_process(delta: float) -> void:
 		
 		#STEP 3: Directional input
 		
-		var current_h_velocity: Vector3 = Vector3(velocity.x, 0, velocity.z)
-		var current_speed: float = current_h_velocity.length()
+		#var current_h_velocity: Vector3 = Vector3(velocity.x, 0, velocity.z)
+		#var current_speed: float = current_h_velocity.length()
 		#var current_h_dir: Vector3 = current_h_velocity.normalized() if current_speed > 0.01 else Vector3.ZERO
 		
 		if has_input:
 			# Smoothly rotate move_dir toward cam_input_dir in the air
-			var turn_speed: float = clampf(1.0 - (absf(gsp) / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0) * 0.5
+			var turn_speed: float = clampf(1.0 - (abs_gsp / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0) * 0.5
 			move_dir = move_dir.slerp(cam_input_dir, turn_speed).normalized()
 			
 			#recompute this
@@ -516,7 +536,7 @@ func _physics_process(delta: float) -> void:
 		# STEP 3: Apply horizontal air velocity based on gsp and move_dir
 		gsp = clampf(gsp, -MAXSPD, MAXSPD)
 		
-		add_debug_info("Ground Speed: " + str(gsp))
+		add_debug_info("Ground Speed: " + readable_float(gsp))
 		
 		var move_vector: Vector3 = move_dir * gsp
 		velocity.x = move_vector.x
@@ -545,10 +565,11 @@ func _physics_process(delta: float) -> void:
 			slope_normal = ground_ray.get_collision_normal()
 			
 			#WIP: Apply velocity to ground (slope) speed
-			gsp += (1.0 - slope_normal.dot(GRAVITY_NORMAL)) * velocity.length()
+			gsp += (1.0 - slope_mag_dot) * velocity.length()
 	
 	if has_input:
-		last_input_dir = cam_input_dir
+		last_cam_input_dir = cam_input_dir
+		last_player_input_dir = player_input_dir
 	
 	process_rotations(delta)
 	

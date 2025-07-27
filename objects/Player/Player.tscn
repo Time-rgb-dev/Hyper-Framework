@@ -955,12 +955,11 @@ outline_size = 10
 outline_color = Color(0, 0, 0, 1)
 
 [node name="Player" type="CharacterBody3D"]
-transform = Transform3D(1.01536, 0, 0, 0, 1.01536, 0, 0, 0, 1.01536, 0, 0, 0)
 top_level = true
 input_capture_on_drag = true
 floor_constant_speed = true
 floor_block_on_wall = false
-floor_snap_length = 10.35
+floor_snap_length = 5.0
 script = ExtResource("1_e80uo")
 
 [node name="CollisionShape3D2" type="CollisionShape3D" parent="."]
