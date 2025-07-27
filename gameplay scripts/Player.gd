@@ -111,18 +111,6 @@ func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: f
 	# Smoothly apply the tilt
 	object.rotation.x = lerp_angle(object.rotation.x, -target_pitch, delta * tilt_speed)
 
-func update_ground_info() -> void:
-	if ground_ray.is_colliding():
-		GROUNDED = true
-		slope_normal = ground_ray.get_collision_normal()
-	else:
-		GROUNDED = false
-		slope_normal = GRAVITY_NORMAL
-		
-		# Align the raycast rotation with the model
-		var forward: Vector3 = -model_default.transform.basis.z.normalized()
-		ground_ray.look_at(ground_ray.global_transform.origin - forward)
-
 func add_debug_info(info:String) -> void:
 	if debug_enabled:
 		debug_label.text += info + "\n"
@@ -226,7 +214,6 @@ func process_rotations(delta: float) -> void:
 			
 			#tilt_to_normal(camera, delta, 3.0, 180.0, -1.5)
 			
-		else:
 			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
 
 func _ready() -> void:
@@ -258,7 +245,7 @@ func _physics_process(delta: float) -> void:
 	
 	var has_input: bool = not cam_input_dir.is_zero_approx() if not input.is_zero_approx() else false
 	
-	add_debug_info("Input: " + str(input))
+	add_debug_info("Input Vector: " + str(input_3))
 	add_debug_info("Camera-localized Input: " + str(cam_input_dir))
 	add_debug_info("Player-localized Input: " + str(player_input_dir))
 	
@@ -272,6 +259,7 @@ func _physics_process(delta: float) -> void:
 	var vel_move_dot: float = cam_input_dir.dot(velocity.normalized())
 	
 	add_debug_info("Cam move dot: " + str(cam_move_dot))
+	add_debug_info("Vel move dot: " + str(vel_move_dot))
 	
 	if GROUNDED:
 		#STEP 1: Check for crouching, balancing, etc.
@@ -311,41 +299,44 @@ func _physics_process(delta: float) -> void:
 		
 		#STEP 3: Slope factors
 		
+		add_debug_info("Slope Normal " + str(slope_normal))
+		
 		#negative if the ground is a ceiling
 		var slope_mag_dot: float = slope_normal.dot(GRAVITY_NORMAL)
 		# positive if the slope and movement are in the same direction;
 		#ie. if the player is running downhill
-		var slope_dir_dot: float = player_input_dir.dot(slope_normal)
+		var slope_dir_dot: float = model_rotation_base.global_rotation.normalized().dot(slope_normal)
 		
 		add_debug_info("Ground Angle " + str(rad_to_deg(acos(slope_mag_dot))))
 		
 		if not SPINDASHING:
 			# Get slope tilt from model forward tilt
-			var forward_vec: Vector3 = -model_default.transform.basis.z.normalized()
-			var slope_strength: float = snappedf(forward_vec.y, 0.01)
+			var forward_vec: Vector3 = -model_default.basis.z.normalized()
+			var slope_strength: float = forward_vec.y
+			
+			
 			
 			add_debug_info("Slope strength: " + str(slope_strength))
 			add_debug_info("Slope magnitude: " + str(slope_mag_dot))
 			add_debug_info("Slope direction: " + str(slope_dir_dot))
 			
 			#slope factors do NOT apply on ceilings. 
-			if slope_mag_dot > -0.5:
+			if slope_mag_dot < 1.0 and slope_mag_dot > -0.5:
 				if SPINNING:
-					if slope_strength < 0: # Downhill
+					if slope_dir_dot: # Downhill
 						add_debug_info("SPINNING DOWNHILL")
 						gsp += absf(slope_strength) * SPIN_SLOPE_BOOST * delta
-					elif slope_strength > 0: # Uphill
+					else: # Uphill
 						add_debug_info("SPINNING UPHILL")
 						gsp -= slope_strength * SPIN_SLOPE_SLOW * delta
-						# Removed MIN_GSP_UPHILL clamp here
 				else:
-					if slope_strength < 0: # Downhill
+					if slope_dir_dot: # Downhill
 						add_debug_info("RUNNING DOWNHILL")
-						gsp += absf(slope_strength) * SLOPE_DOWNHILL_BOOST * delta
-					elif slope_strength > 0: # Uphill
+						gsp -= absf(slope_strength) * SLOPE_DOWNHILL_BOOST * delta
+					else: # Uphill
 						add_debug_info("RUNNING UP THAT HILL") #kudos if you pick up the ref :trol:
-						gsp -= slope_strength * SLOPE_UPHILL_SLOW * delta
-						# Removed MIN_GSP_UPHILL clamp here
+						gsp += slope_strength * SLOPE_UPHILL_SLOW * delta
+			
 			
 			# Clamp slope speed
 			gsp = clampf(gsp, -MAXSPD, MAXSPD)
