@@ -1,6 +1,6 @@
 extends Area3D
 
-@export var SPRING_LAUNCH_SPEED := 50.0  # Adjust this as needed
+@export var SPRING_LAUNCH_SPEED := 100.0  # Adjust this as needed
 
 @export var target_name: String = "Player"
 
@@ -14,6 +14,8 @@ func _on_body_entered(body: Node):
 
 		# Launch upward by modifying vertical velocity
 		body.velocity.y = SPRING_LAUNCH_SPEED
+		body.velocity.x = 0
+		body.velocity.z = 0
 		body.GROUNDED = false
 		body.SPINNING = false
 		body.JUMPING = false

@@ -18,7 +18,7 @@ extends CharacterBody3D
 
 @export var SPIN_FRC: float = 0.05
 
-@export var TOPACC: float = 35.0
+@export var TOPACC: float = 60.0
 @export var MAXSPD: float = 200.0
 
 @export var JUMP_VELOCITY: float = 45.0
@@ -44,7 +44,7 @@ extends CharacterBody3D
 @export var SPINDASH_RELEASE_MULT = 1
 @export var SPINDASH_SLOWDOWN_THRESHOLD: float = 1.5
 
-@export var ROLLTYPE = 1
+@export var ROLLTYPE = 0
 
 @export var BUTTON_ROLL: StringName = &"input_rt"
 @export var BUTTON_JUMP: StringName = &"input_lt"
@@ -184,7 +184,7 @@ func process_animations() -> void:
 		elif SPINNING:
 			anim_player.play("SonicMain/AnimSpin")
 			anim_player.speed_scale = 1.0  # Default run speed
-		elif abs_gsp > 65:
+		elif abs_gsp > 115:
 			anim_player.play("SonicMain/AnimPeelout")
 			var peelout_speed_scale = lerpf(0.5, 2.0, clampf(abs_gsp / 120.0, 0.0, 1.0))
 			anim_player.speed_scale = peelout_speed_scale
@@ -238,7 +238,7 @@ func process_rotations(delta: float) -> void:
 				
 				camera.global_transform = global_transform * camera.transform
 			
-			#tilt_to_normal(camera, delta, 3.0, 180.0, -1.5)
+			tilt_to_normal(camera, delta, 3.0, 20.0, -1.5)
 			
 			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
 
@@ -562,6 +562,7 @@ func _physics_process(delta: float) -> void:
 		
 		if ground_ray.is_colliding() and get_slide_collision_count() > 0:
 			GROUNDED = true
+			SPINNING = false
 			slope_normal = ground_ray.get_collision_normal()
 			
 			#WIP: Apply velocity to ground (slope) speed

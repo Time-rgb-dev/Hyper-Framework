@@ -1,0 +1,29 @@
+[gd_scene load_steps=6 format=3 uid="uid://cbjhtwtkrilqv"]
+
+[ext_resource type="Script" uid="uid://cn5gf1jt6hub7" path="res://objects/Springs/Yellow/YellowSpringEvent.gd" id="1_e0fr5"]
+[ext_resource type="ArrayMesh" uid="uid://b6t60jaf04w3f" path="res://assets/Stage Objects/Springs/Yellow/springclassicyellow.obj" id="2_tipjx"]
+[ext_resource type="Texture2D" uid="uid://b1kma5hr8jelc" path="res://assets/Stage Objects/Springs/cmn_obj_c_spring01_dif_HD.png" id="3_tipjx"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_tipjx"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_s1jcu"]
+albedo_texture = ExtResource("3_tipjx")
+metallic_specular = 0.77
+roughness = 0.5
+subsurf_scatter_enabled = true
+
+[node name="YellowSpring" type="Area3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0337925, 2.38419e-07, -0.0184612)
+script = ExtResource("1_e0fr5")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(3.07, 0, 0, 0, 3.07, 0, 0, 0, 3.07, 0, 1.61, 0)
+shape = SubResource("SphereShape3D_tipjx")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="CollisionShape3D"]
+transform = Transform3D(0.0200361, 0, 0, 0, 0.0200361, 0, 0, 0, 0.0200361, 0, -0.322581, 0)
+mesh = ExtResource("2_tipjx")
+surface_material_override/0 = SubResource("StandardMaterial3D_s1jcu")
+
+[node name="AudioStreamPlayer3D" type="AudioStreamPlayer3D" parent="."]
+visible = false

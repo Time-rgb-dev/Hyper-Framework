@@ -961,6 +961,8 @@ floor_constant_speed = true
 floor_block_on_wall = false
 floor_snap_length = 5.0
 script = ExtResource("1_e80uo")
+BUTTON_ROLL = &"input_b"
+BUTTON_JUMP = &"input_a"
 
 [node name="CollisionShape3D2" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00606082, 0.0218472, -0.0645655)
@@ -1711,9 +1713,12 @@ debug_shape_thickness = 5
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
 [node name="Label" type="Label" parent="CanvasLayer"]
-offset_right = 40.0
-offset_bottom = 42.0
+offset_left = 2224.0
+offset_top = 1.0
+offset_right = 2319.0
+offset_bottom = 43.0
 size_flags_horizontal = 2
 size_flags_vertical = 2
 text = "Default Text"
 label_settings = SubResource("LabelSettings_b20bf")
+horizontal_alignment = 2
