@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://dmbior770cd38"]
 
-[ext_resource type="Script" uid="uid://bo2u4086fg3v8" path="res://assets/objects/Platform/MovingPlatform.gd" id="1_wn6io"]
+[ext_resource type="Script" uid="uid://bo2u4086fg3v8" path="res://Assets/objects/Platform/MovingPlatform.gd" id="1_wn6io"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_wn6io"]
 

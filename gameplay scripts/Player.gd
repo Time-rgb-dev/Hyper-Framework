@@ -10,6 +10,7 @@ extends CharacterBody3D
 @onready var camera:Camera3D = $Camera3D
 @onready var ground_ray: RayCast3D = $GroundRay
 @onready var debug_label: Label = $"CanvasLayer/Label"
+@onready var spin_trail = $SonicFSpin/PathToParticles  # Replace with actual path to your GPUParticles3D nod
 
 # Constants
 @export var ACC: float = 0.30895 # 85% Classic Accurate
@@ -190,7 +191,7 @@ func process_animations() -> void:
 			anim_player.play("SonicMain/AnimPeelout")
 			var peelout_speed_scale = lerpf(0.5, 2.0, clampf(abs_gsp / 120.0, 0.0, 1.0))
 			anim_player.speed_scale = peelout_speed_scale
-		elif abs_gsp > 25:
+		elif abs_gsp > 35:
 			anim_player.play("SonicMain/AnimRun")
 		# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
 			var run_speed_scale = lerpf(0.0, 2.0, clampf(abs_gsp / 65.0, 0.0, 1.0))
@@ -240,7 +241,7 @@ func process_rotations(delta: float) -> void:
 				
 				camera.global_transform = global_transform * camera.transform
 			
-			tilt_to_normal(camera, delta, 3.0, 20.0, -1.5)
+			#tilt_to_normal(camera, delta, 3.0, 20.0, -1.5)
 			
 			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
 
@@ -494,7 +495,10 @@ func _physics_process(delta: float) -> void:
 			move_vector *= gsp
 			velocity.x = move_vector.x
 			velocity.z = move_vector.z
-		
+			if SPINNING and GROUNDED and abs_gsp > 40:
+				spin_trail.emitting = true
+			else:
+				spin_trail.emitting = false
 		if JUMPING:
 			velocity += slope_normal * JUMP_VELOCITY
 		

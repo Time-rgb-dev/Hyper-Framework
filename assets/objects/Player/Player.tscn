@@ -1,8 +1,617 @@
 [gd_scene load_steps=24 format=4 uid="uid://f4cgq5ixf1rn"]
 
-[ext_resource type="Script" uid="uid://cunhx41o7se2j" path="res://gameplay scripts/Player.gd" id="1_e80uo"]
-[ext_resource type="Texture2D" uid="uid://bn7xp6ckci087" path="res://assets/objects/Player/sonicmodel/Sonic v2 tex.png" id="2_e80uo"]
-[ext_resource type="AnimationLibrary" uid="uid://3s1ydgfoo3ep" path="res://assets/objects/Player/sonicmodel/animations/SonicAnimations.tres" id="4_cxr5p"]
+[ext_resource type="Texture2D" uid="uid://bn7xp6ckci087" path="res://Assets/objects/Player/sonicmodel/Sonic v2 tex.png" id="2_e80uo"]
+[ext_resource type="ArrayMesh" uid="uid://b7ojfi2nvoq1y" path="res://Assets/objects/Player/spinball.tres" id="2_mp747"]
+[ext_resource type="AnimationLibrary" uid="uid://3s1ydgfoo3ep" path="res://Assets/objects/Player/sonicmodel/animations/SonicAnimations.tres" id="4_cxr5p"]
+
+[sub_resource type="GDScript" id="GDScript_hs1v8"]
+script/source = "extends CharacterBody3D
+
+@onready var anim_player: AnimationPlayer = $CollisionShape3D2/DefaultModel/GeneralSkeleton/AnimationPlayer
+##The player's model. This is a child of [member model_rotation_base], so it only has to rotate on its local y 
+##axis to face the direction the player is giving input to.
+@onready var model_default = $CollisionShape3D2/DefaultModel
+@onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
+##The base for the player's rotation. This will be rotated to align to slopes.
+@onready var model_rotation_base: Node3D = $CollisionShape3D2
+@onready var camera:Camera3D = $Camera3D
+@onready var ground_ray: RayCast3D = $GroundRay
+@onready var debug_label: Label = $\"CanvasLayer/Label\"
+
+# Constants
+@export var ACC: float = 0.30895 # 85% Classic Accurate
+@export var DEC: float = 0.25
+@export var FRC: float = 0.25 # 80% Classic Accurate
+
+@export var SPIN_FRC: float = 0.05
+
+@export var TOPACC: float = 60.0
+@export var MAXSPD: float = 200.0
+
+@export var JUMP_VELOCITY: float = 45.0
+@export var GRAVITY: float = 75.0
+##The normal (up direction) of gravity
+@export var GRAVITY_NORMAL: Vector3 = Vector3.UP
+
+@export var SLOPE_DOWNHILL_BOOST: float = 100.0
+@export var SLOPE_UPHILL_SLOW: float    = 50.0
+@export var SPIN_SLOPE_BOOST: float     = 200.0
+@export var SPIN_SLOPE_SLOW: float      = 100.0
+
+@export var MIN_GSP_UPHILL: float = 0.0
+
+@export var AIR_ACC: float = 22.20895
+@export var AIR_CONTROL: float = 5.0
+
+@export var WALL_THRESHOLD:float = - 0.9
+
+@export var SPINDASH_CHARGE_RATE: float = 50.0
+@export var SPINDASH_MAX: float = 75.0
+@export var SPINDASH_RELEASE_MULT = 1
+@export var SPINDASH_SLOWDOWN_THRESHOLD: float = 1.5
+
+@export var ROLLTYPE = 0
+
+@export var BUTTON_ROLL: StringName = &\"input_rt\"
+@export var BUTTON_JUMP: StringName = &\"input_lt\"
+@export var BUTTON_LEFT: StringName = &\"input_left\"
+@export var BUTTON_RIGHT: StringName = &\"input_right\"
+@export var BUTTON_UP: StringName = &\"input_forward\"
+@export var BUTTON_DOWN: StringName = &\"input_back\"
+
+@export var DEBUG_DOWNHILL: StringName = &\"input_x\"
+@export var DEBUG_UPHILL:StringName = \"input_y\"
+
+@export var SPACE_SCALE: float = 0.01
+@export var CAM_SENSITIVITY:Vector2 = Vector2(0.1, 0.1)
+
+@export var RINGS = 0
+
+# State
+var gsp: float = 0.0:
+	set(new_gsp):
+		gsp = new_gsp
+		abs_gsp = absf(gsp)
+
+var abs_gsp: float = 0.0
+
+##The direction the player is moving, on the x and z axes.
+var move_dir: Vector3 = Vector3.ZERO
+##This is the raw input of the player rotated to align to the POV of the camera. 
+##For example, z+ will always be going away from the camera and x+ will always be going right to the camera.
+var last_cam_input_dir: Vector3 = Vector3.ZERO
+##This is the raw input of the player rotated to align to the POV of the player. 
+##For example, z+ will always be forward to the player and x+ will always be right to the player.
+var last_player_input_dir: Vector3 = Vector3.ZERO
+
+var GROUNDED: bool = true
+var SPINNING: bool = false
+var CROUCHING: bool = false
+var JUMPING: bool  = false
+var DROPDASHING: bool = false
+var SPINDASHING: bool = false
+var SKIDDING: bool = false
+
+var spindash_charge: float = 0.0
+var roll_toggle_lock: bool = false
+
+var prev_spinning: bool = false
+
+var slope_normal: Vector3 = Vector3.UP:
+	set(new_normal):
+		slope_normal = new_normal
+		slope_mag_dot = slope_normal.dot(GRAVITY_NORMAL)
+var slope_mag_dot:float
+
+var camera_smoothed_pitch: float
+var camera_default_transform: Transform3D
+
+const debug_enabled: bool = true
+
+##Rotate an object towards a specific direction. Used to rotate the player model to face the direction of the player's input
+static func rotate_toward_direction(object: Node3D, direction: Vector3, delta: float, rotation_speed: float) -> void:
+	var target_yaw: float = atan2(direction.x, direction.z)
+	var current_yaw: float = object.rotation.y
+	object.rotation.y = lerp_angle(current_yaw, target_yaw, delta * rotation_speed)
+
+func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: float, pitch_mult: float) -> void:
+	var forward: Vector3 = -object.basis.z.normalized()
+
+	# Check if on flat ground
+	if slope_mag_dot >= 0.999:
+		# Smoothly reset tilt to 0
+		object.rotation.x = lerp_angle(object.rotation.x, 0.0, delta * tilt_speed)
+		return
+
+	# Determine slope in forward direction
+	var slope_forward: float = slope_normal.dot(forward)
+
+	# Compute pitch angle — limit to a reasonable range (e.g., 0.35 rad ≈ 20 degrees)
+	var max_tilt: float = deg_to_rad(max_angle)
+	var target_pitch: float = clampf(slope_forward * max_tilt, -max_tilt, max_tilt)
+	
+	target_pitch *= pitch_mult
+	
+	if object == camera: #TwistPivot variant code. TODO: Make this less hacky
+		camera_smoothed_pitch = lerp_angle(camera_smoothed_pitch, target_pitch, delta * tilt_speed)
+		target_pitch = -camera_smoothed_pitch
+	
+	# Smoothly apply the tilt
+	object.rotation.x = lerp_angle(object.rotation.x, -target_pitch, delta * tilt_speed)
+
+func add_debug_info(info:String) -> void:
+	if debug_enabled:
+		debug_label.text += info + \"\\n\"
+
+func readable_vector(input:Vector3) -> String:
+	return str(input.snappedf(0.01))
+
+func readable_float(input:float) -> String:
+	return str(snappedf(input, 0.01))
+
+func process_animations() -> void:
+	spinball_mesh.visible = SPINNING and not DROPDASHING
+	
+	# --- Detect Spin State Transitions ---
+	if GROUNDED:
+		if SPINNING and not prev_spinning and not JUMPING:
+			anim_player.play(\"SonicMain/AnimRollEnd\")
+		elif not SPINNING and prev_spinning and Input.is_action_pressed(BUTTON_ROLL):
+			anim_player.play(\"SonicMain/AnimRollStart\")
+	
+	prev_spinning = SPINNING
+	
+	if not anim_player.is_playing() or (
+		anim_player.current_animation != \"SonicMain/AnimRollStart\"
+		and anim_player.current_animation != \"SonicMain/AnimRollEnd\"
+	):
+		if SKIDDING:
+			anim_player.play(\"SonicMain/AnimSkid1\")
+			anim_player.speed_scale = 1.0  # Default run speed
+		elif not GROUNDED:
+			if SPINNING or (JUMPING and abs_gsp < 1.0):
+				SPINNING = true  # Ensure spinning visual even if jumping from idle
+				anim_player.play(\"SonicMain/AnimSpin\")
+				anim_player.speed_scale = 1.0
+			else:
+				if velocity.y > 3.0:
+					anim_player.play(\"SonicMain/AnimAirUp\")
+					anim_player.speed_scale = 1.0
+				elif velocity.y < -4.0:
+					anim_player.play(\"SonicMain/AnimAirDown\")
+					anim_player.speed_scale = 1.0
+				else:
+					anim_player.play(\"SonicMain/AnimAirMid\")
+					anim_player.speed_scale = 1.0
+		elif CROUCHING:
+			if not SPINDASHING:
+				anim_player.play(\"SonicMain/AnimCrouch\")
+				anim_player.speed_scale = 1.0  # Default run speed
+			else:
+				anim_player.play(\"SonicMain/AnimSpin\")
+				anim_player.speed_scale = 1.0  # Default run speed
+		elif SPINNING:
+			anim_player.play(\"SonicMain/AnimSpin\")
+			anim_player.speed_scale = 1.0  # Default run speed
+		elif abs_gsp > 115:
+			anim_player.play(\"SonicMain/AnimPeelout\")
+			var peelout_speed_scale = lerpf(0.5, 2.0, clampf(abs_gsp / 120.0, 0.0, 1.0))
+			anim_player.speed_scale = peelout_speed_scale
+		elif abs_gsp > 35:
+			anim_player.play(\"SonicMain/AnimRun\")
+		# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
+			var run_speed_scale = lerpf(0.0, 2.0, clampf(abs_gsp / 65.0, 0.0, 1.0))
+			anim_player.speed_scale = run_speed_scale
+		elif abs_gsp > 1:
+			anim_player.play(\"SonicMain/AnimJog\")
+
+			# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
+			anim_player.speed_scale = 1.0  # Default run speed
+			var walk_speed_scale: float = lerpf(0.05, 1.0, clampf(abs_gsp / 15.0, 0.0, 1.0))
+			anim_player.speed_scale = walk_speed_scale
+		else:
+			anim_player.play(\"SonicMain/AnimIdle\")
+			anim_player.speed_scale = 1.0
+
+func process_rotations(delta: float) -> void:
+	if move_dir != Vector3.ZERO:
+		if not SKIDDING:
+			rotate_toward_direction(model_default, move_dir, delta, 10.0)
+			
+			# Camera
+			
+			var camera_movement: Vector2 = Input.get_vector(
+				\"input_cursor_left\", \"input_cursor_right\", 
+				\"input_cursor_down\", \"input_cursor_up\"
+			)
+			
+			var reset_pressed: bool = Input.is_action_pressed(\"input_rb\")
+			
+			if reset_pressed:
+				camera.global_transform = global_transform * camera_default_transform
+			elif not camera_movement.is_zero_approx():
+				#manual camera movement; this overrides the \"auto\" cam, which is later
+				camera_movement *= CAM_SENSITIVITY
+				#rotate the camera around the player without actually rotating the parent node in the process
+				
+				var manual_cam_transform: Transform3D = Transform3D.IDENTITY
+				#x transform
+				manual_cam_transform = manual_cam_transform.rotated_local(GRAVITY_NORMAL, camera_movement.x)
+				#y transform
+				manual_cam_transform = manual_cam_transform.rotated_local(camera.global_basis.x.normalized(), camera_movement.y)
+				
+				camera.global_transform = global_transform * manual_cam_transform * camera.transform
+			else:
+				#TODO: \"auto\" cam that follows the player, gradually moving to be behind the player at 
+				#all times
+				
+				camera.global_transform = global_transform * camera.transform
+			
+			tilt_to_normal(camera, delta, 3.0, 20.0, -1.5)
+			
+			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
+
+func apply_steering(input_dir: Vector3, delta: float) -> void:
+	if input_dir == Vector3.ZERO:
+		return
+	
+	var current_velocity = Vector3(velocity.x, 0, velocity.z)
+	var current_speed = current_velocity.length()
+	
+	if current_speed < 3.5:
+		# If too slow, directly apply input
+		move_dir = input_dir.normalized()
+		return
+	
+	var current_dir = current_velocity.normalized()
+	var input_norm = input_dir.normalized()
+	
+	var angle_diff = rad_to_deg(acos(clampf(current_dir.dot(input_norm), -1.0, 1.0)))
+
+	var speed_ratio = current_speed / MAXSPD
+# Use a non-linear curve for steer strength: stronger at low speeds, weaker at high speeds
+	var steer_strength = clampf(pow(1.0 - speed_ratio, 0.5), 0.1, 1.0) * 7.0
+	
+	# Apply resistance to sharp turns (bigger angle = more speed lost)
+	if angle_diff > 15.0:
+		var loss_factor = clampf(angle_diff / 180.0, 0.0, 1.0)
+		var speed_loss = current_speed * loss_factor * 0.08
+		gsp = maxf(gsp - speed_loss, 0.0)
+
+	# Gradually steer move_dir
+	move_dir = current_dir.slerp(input_norm, steer_strength * delta).normalized()
+
+	# Reapply velocity with new direction
+	velocity.x = move_dir.x * gsp
+	velocity.z = move_dir.z * gsp
+	
+func _ready() -> void:
+	camera_default_transform = camera.transform
+
+func _physics_process(delta: float) -> void:
+	debug_label.text = \"\"
+	
+	# Calculate rotation that aligns body \"down\" with floor normal
+	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
+	
+	if not axis.is_zero_approx():
+		var quat_rotate: Quaternion = Quaternion(axis, acos(slope_mag_dot))
+		model_rotation_base.rotation = quat_rotate.get_euler()
+	else:
+		# Floor normal and up vector are the same (flat ground)
+		model_rotation_base.rotation = Vector3.ZERO
+	
+	# Input
+	var input: Vector2 = Input.get_vector(BUTTON_LEFT, BUTTON_RIGHT, BUTTON_UP, BUTTON_DOWN)
+	var input_3: Vector3 = Vector3(
+		input.x,
+		0.0, 
+		input.y
+	)
+	
+	var cam_input_dir: Vector3 = (camera.global_basis * input_3).normalized()
+	var player_input_dir: Vector3 = (model_default.global_basis * input_3).normalized()
+	
+	var has_input: bool = not cam_input_dir.is_zero_approx() if not input.is_zero_approx() else false
+	
+	add_debug_info(\"Input Vector: \" + readable_vector(input_3))
+	add_debug_info(\"Camera-localized Input: \" + readable_vector(cam_input_dir))
+	add_debug_info(\"Player-localized Input: \" + readable_vector(player_input_dir))
+	
+	var cam_move_dot: float = move_dir.dot(cam_input_dir)
+	var vel_move_dot: float = cam_input_dir.dot(velocity.normalized())
+	
+	add_debug_info(\"Cam move dot: \" + readable_float(cam_move_dot))
+	add_debug_info(\"Vel move dot: \" + readable_float(vel_move_dot))
+	
+	if GROUNDED:
+		#STEP 1: Check for crouching, balancing, etc.
+		CROUCHING = Input.is_action_pressed(BUTTON_ROLL) and abs_gsp <= 5.0
+		
+		var can_move:bool = not (SPINDASHING or CROUCHING)
+		
+		#STEP 2: Check for starting a spindash
+		if CROUCHING and Input.is_action_pressed(BUTTON_JUMP):
+			if not SPINDASHING:
+				SPINNING = true
+				SPINDASHING = true
+				spindash_charge = gsp * 0.55
+			
+			if has_input:
+				rotate_toward_direction(model_default, last_cam_input_dir, delta * 3, 10.0)
+			
+			if abs_gsp > SPINDASH_SLOWDOWN_THRESHOLD:
+				gsp = move_toward(gsp, 0.0, abs_gsp / 10.0)
+			else:
+				spindash_charge = clampf(spindash_charge + SPINDASH_CHARGE_RATE * delta, 0, SPINDASH_MAX)
+			add_debug_info(\"Spindash Charge: \" + readable_float(spindash_charge))
+		elif SPINDASHING:
+			var dash_dir: Vector3 = cam_input_dir if has_input else last_cam_input_dir
+			if not dash_dir.is_zero_approx():
+				move_dir = dash_dir
+				gsp = spindash_charge * SPINDASH_RELEASE_MULT
+				SPINNING = true
+				CROUCHING = false
+			else:
+				# Fallback if no input direction
+				gsp = spindash_charge * SPINDASH_RELEASE_MULT
+				SPINNING = true
+			SPINDASHING = false
+			spindash_charge = 0.0
+			SPINNING = true
+		
+		#STEP 3: Slope factors
+		
+		add_debug_info(\"Slope Normal \" + readable_vector(slope_normal))
+		
+		# positive if the slope and movement are in the same direction;
+		#ie. if the player is running downhill
+		#var slope_dir_dot: float = move_dir.dot(slope_normal) #works for loops if running towards camera, downhill is always towards camera
+		var slope_dir_dot: float = last_player_input_dir.dot(slope_normal)
+		
+		add_debug_info(\"Ground Angle \" + readable_float(rad_to_deg(acos(slope_mag_dot))))
+		
+		if not SPINDASHING:
+			# Get slope tilt from model forward tilt
+			var slope_angle:float = acos(slope_mag_dot)
+			
+			add_debug_info(\"Slope magnitude: \" + readable_float(slope_mag_dot))
+			add_debug_info(\"Slope direction: \" + readable_float(slope_dir_dot))
+			add_debug_info(\"Slope angle: \" + readable_float(rad_to_deg(slope_angle)))
+			
+			#slope factors do NOT apply on ceilings. 
+			#if slope_mag_dot < 1.0 and slope_mag_dot > -0.5:
+			if slope_mag_dot < 1.0 and slope_mag_dot > 0.0:
+				var downhill_factor:float 
+				var uphill_factor:float
+				
+				if SPINNING:
+					downhill_factor = SPIN_SLOPE_BOOST
+					uphill_factor = SPIN_SLOPE_SLOW
+				else:
+					uphill_factor = SLOPE_UPHILL_SLOW
+					downhill_factor = SLOPE_DOWNHILL_BOOST
+				
+				if slope_dir_dot < 0 or Input.is_action_pressed(DEBUG_DOWNHILL): # Downhill
+					add_debug_info(\"RUNNING DOWNHILL\")
+					gsp += slope_angle * downhill_factor * delta
+				elif slope_dir_dot > 0 or Input.is_action_pressed(DEBUG_DOWNHILL): # Uphill
+					add_debug_info(\"RUNNING UP THAT HILL\") #kudos if you pick up the ref :trol:
+					gsp -= slope_angle * uphill_factor * delta
+			
+			# Clamp slope speed
+			gsp = clampf(gsp, -MAXSPD, MAXSPD)
+		else:
+			#WIP: Keep the player from sliding during a spindash
+			gsp = 0
+			velocity = Vector3.ZERO
+		
+		
+		#STEP 4: Check for starting a jump
+		if Input.is_action_just_pressed(BUTTON_JUMP) and can_move:
+			SPINNING = true
+			JUMPING  = true
+			SKIDDING = false
+		
+		#STEP 5: Direction input factors, friction/deceleration
+		
+		var current_friction: float = SPIN_FRC if SPINNING else FRC
+		
+		# Detect skidding
+		if not SPINNING and not CROUCHING and has_input:
+			if move_dir != Vector3.ZERO:
+				if vel_move_dot <= -0.16 and abs_gsp > 25.0:
+					SKIDDING = true
+				elif vel_move_dot > 0.25:
+					SKIDDING = false
+		
+		if SKIDDING:
+			# Stop skidding if speed is very low
+			if abs_gsp < 1.0:
+				SKIDDING = false
+			else:
+				# Apply extra friction while skidding
+				gsp = move_toward(gsp, 0.0, abs_gsp / 15.0 * 0.7)
+		
+		elif can_move: 
+			if has_input:
+				# Rotate toward new input direction
+				# update_move_direction(cam_input_dir, delta, not GROUNDED)
+				if has_input:
+					apply_steering(cam_input_dir, delta)
+				#recompute this
+				cam_move_dot = move_dir.dot(cam_input_dir)
+				
+				if abs_gsp < TOPACC:
+					# Accelerate
+					if not SPINNING and not CROUCHING and not SKIDDING:
+						if cam_move_dot > 0:
+							gsp = minf(gsp + ACC, TOPACC)
+						elif cam_move_dot < 0:
+							gsp = maxf(gsp - DEC, -TOPACC)
+			else:
+				# Apply friction when no input
+				gsp = move_toward(gsp, 0.0, current_friction)
+		
+		#Rolling friction
+		if SPINNING:
+			if has_input:
+				gsp = move_toward(gsp, 0.0, current_friction)
+		
+		#STEP 6: Check crouching, balancing, etc.
+		
+		#STEP 7: Push/wall sensors
+		
+		if is_on_wall():
+			var forward: Vector3 = -model_default.global_basis.z.normalized()
+			var wall_normal: Vector3 = get_wall_normal()
+			var wall_dot: float = forward.dot(wall_normal)
+			
+			if wall_dot < WALL_THRESHOLD:  # Almost head-on into wall
+				add_debug_info(\"WALL COLLISION\")
+				gsp = 0.0
+				abs_gsp = 0.0
+		
+		#STEP 8: Check for doing a roll
+		
+		if not SPINDASHING:
+			if ROLLTYPE == 0:
+				if Input.is_action_just_pressed(BUTTON_ROLL) and abs_gsp > 5.0:
+					SPINNING = true
+				elif abs_gsp < 1.0:
+					SPINNING = false
+			elif ROLLTYPE == 1:
+				if Input.is_action_pressed(BUTTON_ROLL) and abs_gsp > 5.0:
+					SPINNING = true
+				elif not JUMPING:
+					SPINNING = false
+		
+		if SPINNING and not SPINDASHING and abs_gsp < 1.0 and not JUMPING:
+			SPINNING = false
+		
+		#STEP 9: Handle camera bounds (not gonna worry about that)
+		
+		#STEP 10: Move the player (apply gsp to velocity)
+		gsp = clampf(gsp, -MAXSPD, MAXSPD)
+		
+		add_debug_info(\"Ground Speed: \" + readable_float(gsp))
+		
+		if not SPINDASHING:
+			var move_vector: Vector3 = move_dir
+			move_vector *= gsp
+			velocity.x = move_vector.x
+			velocity.z = move_vector.z
+		
+		if JUMPING:
+			velocity += slope_normal * JUMP_VELOCITY
+		
+		move_and_slide()
+		
+		#STEP 11: Check ground angles
+		
+		ground_ray.target_position = -up_direction * floor_snap_length
+		
+		if JUMPING:
+			GROUNDED = false
+		else:
+			GROUNDED = ground_ray.is_colliding()
+		
+		if GROUNDED:
+			apply_floor_snap()
+			slope_normal = ground_ray.get_collision_normal()
+		else:
+			slope_normal = GRAVITY_NORMAL
+		
+		#STEP 12: Check slipping/falling
+		
+		if GROUNDED:
+			var threshold: float = 10.0
+			
+			# If on a steep slope (close to wall) and vertical speed along slope is low, detach
+			if abs_gsp < threshold:
+				if slope_mag_dot < 0: 
+					GROUNDED = false
+					up_direction = GRAVITY_NORMAL
+					add_debug_info(\"GROUND UNSTICK\")
+				else:
+					add_debug_info(\"GROUND NEUTRAL\")
+			else:
+				up_direction = slope_normal
+				add_debug_info(\"GROUND STICK\")
+				# Optionally reset or reduce speed when detaching
+				# velocity.y = 0
+	
+	else: #not GROUNDED
+		#STEP 1: check for jump button release
+		if JUMPING and not Input.is_action_pressed(BUTTON_JUMP):
+			if velocity.y > 0:
+				velocity.y *= 0.5  # You can tweak this (e.g. 0.4–0.6)
+			JUMPING = false  # Prevent multiple reductions
+		
+		add_debug_info(\"Jumping: \" + str(JUMPING))
+		
+		#STEP 2: Super Sonic checks (not gonna worry about that)
+		
+		#STEP 3: Directional input
+		
+		#var current_h_velocity: Vector3 = Vector3(velocity.x, 0, velocity.z)
+		#var current_speed: float = current_h_velocity.length()
+		#var current_h_dir: Vector3 = current_h_velocity.normalized() if current_speed > 0.01 else Vector3.ZERO
+		
+		if has_input:
+			apply_steering(cam_input_dir, delta)
+			if abs_gsp < TOPACC:
+				# Adjust acceleration based on input alignment
+				if cam_move_dot > 0:
+					gsp = clampf(gsp + AIR_ACC * delta, -TOPACC, TOPACC)
+				elif cam_move_dot < 0:
+					gsp = clampf(gsp - AIR_ACC * 0.5 * delta, -TOPACC, TOPACC)
+		else:
+			# No input — slowly reduce gsp
+			gsp = move_toward(gsp, 0.0, FRC)
+		
+		# STEP 3: Apply horizontal air velocity based on gsp and move_dir
+		gsp = clampf(gsp, -MAXSPD, MAXSPD)
+		
+		add_debug_info(\"Ground Speed: \" + readable_float(gsp))
+		
+		var move_vector: Vector3 = move_dir * gsp
+		velocity.x = move_vector.x
+		velocity.z = move_vector.z
+		#STEP 4: Air drag
+		
+		# Airborne or spindash - let slope speed decay
+		#gsp = move_toward(gsp, 0, DEC * delta)
+		
+		#STEP 5: Move the player
+		move_and_slide()
+		
+		#STEP 6: Apply gravity
+		velocity += -GRAVITY_NORMAL * GRAVITY * delta
+		
+		#STEP 7: Check underwater for reduced gravity (not gonna worry about that)
+		
+		#STEP 8: Reset ground angle
+		slope_normal = GRAVITY_NORMAL
+		
+		#STEP 9: Collision checks
+		ground_ray.target_position = -GRAVITY_NORMAL * floor_snap_length
+		
+		if ground_ray.is_colliding() and get_slide_collision_count() > 0:
+			GROUNDED = true
+			SPINNING = false
+			slope_normal = ground_ray.get_collision_normal()
+			
+			#WIP: Apply velocity to ground (slope) speed
+			gsp += (1.0 - slope_mag_dot) * velocity.length()
+	
+	if has_input:
+		last_cam_input_dir = cam_input_dir
+		last_player_input_dir = player_input_dir
+	
+	process_rotations(delta)
+	process_animations()
+"
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_e80uo"]
 margin = 1.682
@@ -236,26 +845,6 @@ bind/61/pose = Transform3D(1.19209e-07, 4.37114e-08, -1, 1, -2.73431e-14, 1.1920
 bind/62/name = &"pfeetb"
 bind/62/bone = -1
 bind/62/pose = Transform3D(1.19209e-07, 4.37114e-08, -1, 1, -2.73431e-14, 1.19209e-07, -2.21323e-14, -1, -4.37114e-08, -2.38197e-05, 2.83953e-12, 2.65e-05)
-
-[sub_resource type="ArrayMesh" id="ArrayMesh_hp6x6"]
-resource_name = "SonicFSpin"
-_surfaces = [{
-"aabb": AABB(-2.88e-05, -4.15792e-05, -4.1583e-05, 5.76e-05, 8.31584e-05, 8.3166e-05),
-"attribute_data": PackedByteArray("9IssP8BIMj0OPSw/QAZMPVGvLD8AAjE9ik0tP6BkQT2vlSs/IHlIPSJDLD+gK149qCIsP0AsHj0Atis/AJhUPU/FKj+A8Uc9yAUsP0D6Hz1W/yw/wHArPVSUKz9gPE09LmIrPyDSRT2RRSc/AAV1PeebKD9Q/Bw9LYUmPwCX/jyQcCg/sJIQPbOdKT+wuhE9KRwlP9APSj14KyQ/YGk9PUxfJD/gjlY973YrPxANUT17dCQ/4PFXPQ2BKj/4J4U9yUskP0CIST1VniM/wNUzPWmkIz8g+0U97J0qPwAPhj2lySk/cPSMPUtcKT/wWok9tnApP+B1ij2Maig/oGePPedwJz9Qt4A9xEMmP1AjgD3QviM/INVzPbDbIz8gB3I9IeIiP6CQZj0nMiM/UP9gPSRNJD8AxUQ9SX8kP0AvTD2EVSM/oLhfPe6TIj+gnFA9VMAnP9Dehj2JaiQ/QPRAPfGsJz+gmIE9D/knP/CjgT3qnSY/cA+HPW8BKD9gP3Y9GyQoPxACgD30Nic/8KWCPVCwKj+AtFM9e2QrP9DSYz0J4Cc/8MEbPSgxJT/gTD49hzQoPxDQDj1dvSc/QP0RPSMhKD+wQwQ9/XwkP4AuLj1p6Cc/gLkOPYSqKD9wtQw9jkMpP2DiAz3CcCY/QCv6PGtgJT9gsQc9i0MlP2DjBT3TFyY/wDDwPOx2Jz8AZOY8a2AlP2CxBz2LQyU/YOMFPdMXJj/AMPA8aegnP4C5Dj2Eqig/cLUMPajyJz8gCw89qPInPyALDz2OQyk/YOIDPWnoJz+AuQ49hzQoPxDQDj1dvSc/QP0RPQngJz/wwRs9Xb0nP0D9ET2o8ic/IAsPPYSqKD9wtQw9hzQoPxDQDj0jISg/sEMEPY5DKT9g4gM9wnAmP0Ar+jwthSY/AJf+POx2Jz8AZOY855soP1D8HD2znSk/sLoRPZBwKD+wkhA90L4jPyDVcz2w2yM/IAdyPSHiIj+gkGY9KRwlP9APSj3RUCQ/kOZIPUl/JD9AL0w9eCskP2BpPT0kTSQ/AMVEPUl/JD9AL0w90VAkP5DmSD3JSyQ/QIhJPVWeIz/A1TM9TF8kP+COVj3JSyQ/QIhJPXgrJD9gaT090VAkP5DmSD17dCQ/4PFXPWmkIz8g+0U9JE0kPwDFRD1VniM/wNUzPYRVIz+guF89JzIjP1D/YD3ukyI/oJxQPYlqJD9A9EA9/XwkP4AuLj0oMSU/4Ew+PQ2BKj/4J4U97J0qPwAPhj2lySk/cPSMPQ/5Jz/wo4E99DYnP/Clgj3Q7ic/GHuBPdDuJz8Ye4E96p0mP3APhz0P+Sc/8KOBPfGsJz+gmIE9GyQoPxACgD1vASg/YD92PRskKD8QAoA90O4nPxh7gT30Nic/8KWCPfGsJz+gmIE9VMAnP9Dehj3qnSY/cA+HPbZwKT/gdYo9S1wpP/BaiT2Maig/oGePPZFFJz8ABXU9xEMmP1AjgD3ncCc/ULeAPagiLD9ALB49yAUsP0D6Hz1W/yw/wHArPU/FKj+A8Uc9ppArP8AaST0uYis/INJFPQC2Kz8AmFQ9ppArP8AaST1UlCs/YDxNPS5iKz8g0kU9r5UrPyB5SD0iQyw/oCtePQC2Kz8AmFQ9r5UrPyB5SD2mkCs/wBpJPQ49LD9ABkw9VJQrP2A8TT0iQyw/oCtePfSLLD/ASDI9Ua8sPwACMT2KTS0/oGRBPe92Kz8QDVE9e2QrP9DSYz1QsCo/gLRTPf+bLD9g/DQ9JjYsPwAJKj3Q8Sw/oABJPf+bLD8ABV09hEYsP6AAST1+6Ss/ABc6Pb5rLD+wHyg9O5ErP0BnGT1gICw/QFUiPbYaLD+AbBg9mHorP+BiED0BMSk/AJn8PLpbKz/AUBI9ATEpPwCZ/Dxnxyo/QAcyPXNbKj8gpD49/x0oP+BHIT1oASY/IKEEPdzKJz/gGg89MnAlPwD4ID288Cc/wN7xPJbRJj9gBgY9Jw0rP4CTPj288Cc/APggPaBrKj8g10s92hUmPwAn+Dwk9yQ/AAIPPQWGJT9gBgY9u8skP2BEDD3gZiQ/4GIQPRfBIz9QDjc9F8EjP1AONz0WmSM/ICFRPajvIj+gAEk9vnskPzBGWj15wyc/YLlwPREaJT8g+l897S8kP0Csaz26dSM/oOFpPbzwJz/oK4c9TxsjP6AAST1RqyM/UPhnPXeBJj8Qnxs9voUkP+CnVz0XwSM/EKxvPTJwJT+gAEk9ViUkP0BUez2+hSQ/gLB/PXewJj9w2ok9SAYnP4Cwfz1Ccig/kDqHPXNbKj8wXVM9hZYoPxCsbz0BYCk/QGJ2PUzJKD9QB4E9rt8oP1BegD1U6io/sH+BPeEPKT94/YU9RnEqP+grhz1yWyo/eP2FPXUbKj/QhoI9ATEpP3DaiT2cFig/MHOBPWAgLD8A81o9mHorPzDPgD1gICw/APNaPbpbKz+AsH89LBgnP7DyDz3KASc/sEQRPYtDJT9g4wU9u8skP2BEDD3TFyY/wDDwPCT3JD8AAg89a2AlP2CxBz3TFyY/wDDwPCwYJz+w8g89ygEnP7BEET0thSY/AJf+PGgBJj8goQQ97HYnPwBk5jzsdic/AGTmPNoVJj8AJ/g8wnAmP0Ar+jznmyg/UPwcPf8dKD/gRyE9s50pP7C6ET3cyic/4BoPPZBwKD+wkhA9s50pP7C6ET0h4iI/oJBmPVYlJD9AVHs90L4jPyDVcz2+eyQ/MEZaPWmkIz8g+0U9VZ4jP8DVMz0WmSM/ICFRPScyIz9Q/2A9unUjP6DhaT3ukyI/oJxQPe6TIj+gnFA9UasjP1D4Zz2EVSM/oLhfPaXJKT9w9Iw9VOoqP7B/gT0NgSo/+CeFPUzJKD9QB4E9rt8oP1BegD1UwCc/0N6GPUJyKD+QOoc96p0mP3APhz2RRSc/AAV1PXnDJz9guXA9xEMmP1AjgD3EQyY/UCOAPZwWKD8wc4E953AnP1C3gD3IBSw/QPofPTuRKz9AZxk9Vv8sP8BwKz1W/yw/wHArPbYaLD+AbBg9qCIsP0AsHj0OPSw/QAZMPSJDLD+gK149hEYsP6AAST1Rryw/AAIxPb5rLD+wHyg9ik0tP6BkQT0mNiw/AAkqPfSLLD/ASDI9ik0tP6BkQT2gayo/INdLPVCwKj+AtFM9e2QrP9DSYz0uRiw/oABJPSnGLD+gAEk9YCAsP1AONz3YlCw/IN0sPSnGLD+gRzQ9dKksP6DyLz3/myw/YPw0PSnGLD/AuV09KcYsP6AAST1gICw/QFUiPWAgLD8QrG890o8rP4CXOz26ZSs/ILs3PYuxKz8gVSY9K4IrP3ByOz07ASs/wPgXPS5GLD8A+CA9c78sP5BTKz3pRiw/oKwiPYuxKz8gVSY9ulsrP8BQEj26Wys/YFk6PXUbKj/A8ww9c4IrP0AEEj3s9ys/IJkaPXUbKj/A8ww9qrUpP8D4Fz2Flig/QFUiPTDbKD/AUBI9vPAnP4CpAz2W0SY/YAYGPfNKJz9QDjc9wEknP+AvFz13sCY/AJn8PAhkJz9AUR09ek4oPwDwHT0DxiU/YPw0PQPGJT/A8ww9KqUmP8BT9zx3sCY/AJn8PLzwJz/AU/c84Q8pP2AGBj02byc/IIwDPTDbKD/AUBI9cy4mP2B6/TxsiyU/IJwDPTJwJT+AqQM9BYYlP2AGBj2tNCU/QIQGPQPGJT/A8ww9voUkP8BQEj2Q5yQ/gGIGPUQCJz/AfAk9v7UnPyDKAT0LgSQ/oOYPPVkKJT8Qjwg9voUkP8BQEj094CQ/wPgXPc4rJj/A+Bc9eUUjP2D8ND15RSM/YPw0PU8bIz+gAEk97S8kPyBVJj2+hSQ/YFk6PXlFIz8ABV09MnAlP6AAST1IBic/4KdXPQJyJT/AzVw980onPxCsbz084CQ/oAh6PYWWKD8A81o9SAYnP4Cwfz3OKyY/oAh6PZbRJj94/YU9RnEqP6AAST11Gyo/AAVdPbpbKz/gp1c9i7ErP0Csaz1GcSo/QAlxPXB9KD8AsHQ9/pInP2ARdD0w2yg/gLB/PbiXKD9w0Xo94Q8pP3j9hT288Cc/wCuLPbpbKz+AsH89BLMpPxCiiT13sCY/cNqJPQxWKj+YMoc9KqUmP8Ariz0b/yk/+FWIPXJbKj94/YU96PkqP3DPhT1sYCs/WA2BPTsBKz+gCHo9dRsqP9CGgj0BMSk/cNqJPbkrKD+gG4g9vPAnP8Ariz1NPCk/wCuLPbzwJz/wiIw9ltEmP3j9hT2+hSQ/gLB/Pe0vJD9ArGs94GYkPzDPgD288Cc/MM+APbzwJz9ACXE9zismP6AIej3CxiM/wJR5PQVfJD8g/X89jOkjP0Bodz23xyM/wKd0PUmbIz9ACXE9F8EjPxCsbz2PmiM/oFRvPQUiIz/ArWY9bUwjPyClZD369yM/QOpXPaZRJD/gaVY9T2kkP8D9UD15RSM/AAVdPRfBIz8A81o9SpsjP6AAST3uUiQ/EFZLPVHUJD/QbVM96kYkP1BPRz1mNiU/QMlRPb6FJD9gWTo9PeAkP8CxLD0FhiU/IKQ+PTy0Jj8QHiE9SAYnP2BZOj3zSic/QFUiPQExKT+go0M9EasqPwA4QD26Wys/4KdXPTsBKz+AT2U9PC0pP0DjcD2qtSk/oAh6PZDnJD+AYgY9rTQlP0CEBj1ZCiU/EI8IPb+1Jz8gygE9IyEoP7BDBD02byc/IIwDPY5DKT9g4gM9cy4mP2B6/Tx6Tig/APAdPbDbIz8gB3I9jOkjP0Bodz0h4iI/oJBmPcLGIz/AlHk9t8cjP8CndD1PaSQ/wP1QPQUiIz/ArWY9bUwjPyClZD3qRiQ/UE9HPYlqJD9A9EA97lIkPxBWSz39fCQ/gC4uPeydKj8AD4Y96PkqP3DPhT2lySk/cPSMPbkrKD+gG4g9S1wpP/BaiT0Esyk/EKKJPYxqKD+gZ489jGooP6Bnjz0b/yk/+FWIPbZwKT/gdYo9/pInP2ARdD3s9ys/IJkaPSuCKz9wcjs9umUrPyC7Nz1zvyw/kFMrPXSpLD+g8i892JQsPyDdLD0lhis/QDlLPfGLKz+gAEk9Uo0rP1DDRz2Jjis/QKtGPU5zKz+gikU9jZorPwCySj0moSo/QN9OPayDKj+gAEk9RnEqP6AAST1yWyo/IKQ+PY1xKj/ghEw9F4sqP3BxTz07ASs/wLEsPU08KT+gAEk9ATEpP8BdTj288Cc/oABJPXUbKj9g/DQ94Q8pPyCkPj2qtSk/wLEsPUZxKj8A+CA9MNsoP2BZOj0BMSk/IFUmPaq1KT/A+Bc9hJYoP2AONz2Elig/QFUiPY1GKD9g/DQ9vPAnP6BHND3rmic/YPw0PfNKJz9gDjc9zqcnP4AbHz05gSc/AGghPUV4Jz+A8CE9MEYnP/A4IT1FmSc/cOwdPXewJj8gVSY9rdImP8CmEz0N3SY/MLcRPc4rJj/AsSw9ltEmPyCkPj0DxiU/YPw0PT3gJD/AsSw9MnAlPwD4ID13sCY/oKNDPSulJj+gAEk9d7AmP8BdTj2X0SY/MF1TPQPGJT8ABV09BYYlPzBdUz1IBic/4KdXPc4rJj+AT2U9PeAkP4BPZT0ycCU/QAlxPcxdJT+gAEk92HUlPzAqRj1RQCU/ICJDPetvJT+AfEU9YVYlP+CPQj3XeiQ/YIY/PVNbJD8QyEY9h1UkP6AAST0mVCQ/AD5KPe0vJD8gVSY9F8EjP0BVIj1PGyM/oEc0PajvIj+gAEk9TxsjP6AAST1JmyM/APggPU8bIz/AuV094GYkP+BiED0EOCM/sA5iPdFgIz9AJWE9gnYjP/AhYz1unyM/gOFmPSpuJD+wdkw9PeAkP6AIej0KnyM/wIhqPaBMIz8wJGU9PbAjP2CMbj0FIiM/wK1mPYF3Iz8go2s9decjPwDrdj2UFyQ/MFl6PeBmJD8wz4A9fC4kP5AGfT3CxiM/wJR5PQVfJD8g/X89MnAlP+grhz0FhiU/eP2FPSqlJj/AK4s9vPAnP/CIjD0DxiU/0IaCPU08KT/AK4s9SAYnP4Cwfz0h6ic/gOyAPbzwJz/g2YA9SvQnP3DLgD1kHCg/sAGAPbzwJz/oK4c9vPAnP7Arhz3g8Cc/wCuHPZUfKD8gMYc9CF8oP2A4hz0BMSk/cNqJPbt/KT9QTIo96qopPwCiiT1j7Ck/0J+IPTuEKD+QkIY9NN8oP0hChD1y9Sc/CMeBPS3HKD/wdIE92rsoPxh7gD0y8yg/6D+APW9wKD+wt4A9agQpPxAlgD3KDik/gFp+PTNIKD/gFHQ9SJsoP2DIcD0zaSg/wBBwPQExKT9ArGs9P2AoP2CZcD2qOSg/wOVyPaq1KT+AT2U9hZYoPwDzWj2NRig/AAVdPbzwJz/AuV09MNsoP+CnVz3rmic/AAVdPX0sKD9gYX895D4oP6AXgD3zSic/EKxvPXewJj9ArGs980onPwDzWj3hDyk/MF1TPXUbKj8ABV09OwErP4BPZT1GcSo/QAlxPaFmKz8Ae1I9i7ErP0Csaz3/myw/AAVdPS5GLD9ACXE9p4AsPxDcMD31aiw/YN8uPQpCLD/AHys9bkIsP6B4Jz07MSw/8HQjPfZpLD9AXiY9wBksP6BZHT0D+is/YBYbPeTJKz8gqBc9IrwrPwCtFj38sis/wPoUPUZxKj+AqQM9OwErP7D4Fz1zWyo/YAYGPU08KT/AU/c84Q8pP2AGBj288Cc/gKkDPVf3Jz9gKBA9vPAnPwCqAz2Y8Cc/0KkDPePBJz8gnwM9b4InP5CQAz288Cc/4GIQPbzwJz+ATRA9Lu0nP2BqED0UxSc/AP4RPfu0Jz8AoBI9lKInPyDSET29YSY/gNH6PI02Jj+gev08FfUlP8DBAD1c4iU/YFUBPTxdJz9A4AQ9BuwnP0BzDj1G7iY/gIERPUsaJz9wFw89niUnPyALET0JcSc/8JEQPTw0JT9AkQo95QQlPyACDj1VTSU/YL4IPcbFJT9gcgE9VswkPxDuDj2/kiQ/4AERPQ6xJD8g1Aw9kOckP4BiBj08rSo/ALiDPZPcKj+g/4E9I5QqP4ChhD1GcSo/6CuHPcusKj+IvoU9sRsqP4BHiD2dyyk/6PaKPQxWKj+YMoc9IhUrP6CJgT0e1yo/ILmEPblOKz+4f4A9aTArP5CWgj3o+So/cM+FPdDxLD+gAEk9KcYsP6BHND10qSw/oPIvPQuVLD9AXC097XQsP8BJKT0pxiw/wLldPWAgLD8QrG89LkYsP0AJcT2Yeis/MM+APUBFLD+AcUk9MEcsP/ARRj0aSCw/YBVCPWFILD9A4EA9/5ssP2D8ND26Wys/4KdXPch+Kz8QaEk9OwErP4BPZT07ASs/oAh6Paq1KT+AT2U9vBUrP4Degj1pMCs/kJaCPWxgKz9YDYE9HgYrPwhMgz2Azyo/IMuEPcusKj+IvoU9sRsqP4BHiD2ISSo/KIWGPWQIKj+wEIc9ncspP+j2ij0Q4Ck/ILCGPbjOKT/ADoc9B5MpP5BUiD22dCk/EPqIPbt/KT9QTIo9MnAlP+grhz288Cc/wCuLPQWGJT94/YU9fC4kP5AGfT0DxiU/0IaCPblwJD/g4X49A08kP2A7ez09UCQ/EJp4PTJwJT9ACXE9UkAkPxC/dz2ICSQ/QM10PTzgJD+AT2U9tO0jP1BOcz1JmyM/QAlxPbfHIz/Ap3Q9gXcjPyCjaz2PmiM/oFRvPYtsIz+Qt2g9BDgjP7AOYj1PGyM/wLldPU8bIz+gRzQ9F8EjPwDzWj1dmSM/4OtPPUeaIz9g70s99JojP6AAST03nCM/0I9IPRfBIz9AVSI9SZsjPwD4ID084CQ/wPgXPQ6xJD8g1Aw9C4EkP6DmDz1Z2yQ/QGkLPfgRJT8gawg9rTQlP0CEBj0ycCU/gKkDPWyLJT8gnAM9xsUlP2ByAT3wlyU/APcEPRPZJT/w3wM92hUmPwAn+DzAEiY/wOMDPXBOJj8gWAE9zismP8D4Fz3CbCY/MA0APSqlJj/AU/c8vWEmP4DR+jy88Cc/wN7xPLzwJz/AU/c8TTwpP8BT9zxGcSo/gKkDPeEPKT9gBgY9c1sqP2AGBj2Yeis/4GIQPUZxKj8A+CA9c4IrP0AEEj38sis/wPoUPb9wKz+AHxM9dJIrP+DFFj22Giw/gGwYPSahKz9AQho98NcrPyA0HT07ASs/wLEsPcTzKz8Asx49LkYsPwD4ID3AGSw/oFkdPfZpLD9AXiY9c78sP5BTKz3pRiw/oKwiPWAgLD9QDjc9pDIsPyC6Pz2oZCw/oE5FPRWaKz8gs0g9/GwrP2APOj0aaSs/QNA4PZJwKz+ASjw9KXgrP6ADQT34RSs/8BA3PXUbKj9g/DQ9dm8qP6AzNT2Qoio/AIRDPcdtKj+AVT49V2IqP1B0QT3faio/gANCPaGPKj+AbEQ9qrUpP8CxLD3hDyk/IKQ+PQExKT+go0M9ATEpPyBVJj2qtSk/wPgXPTDbKD9gWTo9vPAnP6AAST1NPCk/oABJPYWWKD9QDjc9ATEpP8BdTj1zWyo/MF1TPWKIKD9gohE9nFcoP8BQHz3ZKCg/IOkgPSMUKD9woQ89vPAnPwBFDz123Cc/gC4PPUgGJz/AUBI9XbgnP6DZED2mCyg/gFkOPbzwJz9gyB8980onP0BVIj288Cc/APggPXewJj8gVSY9jUYoP2D8ND288Cc/oEc0PeuaJz9g/DQ9zismP8CxLD1IBic/YFk6PT3gJD/AsSw9F8EjP1AONz2W0SY/IKQ+PTecIz/Qj0g9r2IkP0CZSD0FhiU/IKQ+PXewJj+go0M94GYkP6AAST31ZCQ/oABJPYxnJD8gUkk9wX8kPwC6Sz3UiSQ/QLpMPX58JD9g600911ElP+CUTT2ZdiU/4P1PPSF/JT8AjVA9KqUmP6AAST13sCY/wF1OPQWGJT8wXVM9sHMlP8CrUz3oPiU/QH1OPZbRJj8wXVM9A8YlPwAFXT2AmyQ/YPBaPV54JD8QMVk9zismP4BPZT13sCY/QKxrPc4rJj+gCHo980onPwDzWj3rmic/AAVdPbzwJz/AuV09jUYoPwAFXT0WWSc/gC+APdyJJz+gsHI9n7gnPzAYcT1UzSc/8C+BPbzwJz8gXoE9AgUoP3BpgT0bKSg/0JOAPdLVJz/g04E9qrUpP6AIej0BMSk/QKxrPYWWKD8QrG89MNsoP+CnVz3hDyk/MF1TPZh6Kz+gAEk9gnwrP6AAST3seSs/IK9IPbZhKz9QR0Y9pFcrPyBHRT35ZCs/ABZEPbzwJz9ACXE9vPAnP/A4cj3TriM/QEdSPdB8Iz+gskw9Y0ckPzBOST3lcCQ/0LZVPfgRJT8gawg9WdskP0BpCz1VTSU/YL4IPTw0JT9AkQo95QQlPyACDj3b6Cc/AL0OPUHvJz8A8A49CXEnP/CRED2eJSc/IAsRPUbuJj+AgRE9Dd0mPzC3ET3b6Cc/AL0OPQbsJz9Acw49Qe8nPwDwDj1X9yc/YCgQPa7wJz8QJw89vPAnP4BNED0u7Sc/YGoQPR7RJz+w5RA9FMUnPwD+ET37tCc/AKASPR7RJz+w5RA9lKInPyDSET2u8Cc/ECcPPUWZJz9w7B09zqcnP4AbHz0J4Cc/8MEbPYSqKD9wtQw9OYEnPwBoIT1FeCc/gPAhPbzwJz8AqgM9mPAnP9CpAz3jwSc/IJ8DPW+CJz+QkAM9wmwmPzANAD1wTiY/IFgBPcASJj/A4wM9vWEmP4DR+jyNNiY/oHr9PBX1JT/AwQA9XOIlP2BVAT2cVyg/wFAfPdkoKD8g6SA9pgsoP4BZDj0jFCg/cKEPPbzwJz8ARQ89dtwnP4AuDz207SM/UE5zPYgJJD9AzXQ9UkAkPxC/dz09UCQ/EJp4PXXnIz8A63Y9lBckPzBZej0pHCU/0A9KPddRJT/glE096D4lP0B9Tj14KyQ/YGk9PZl2JT/g/U89IX8lPwCNUD17UiQ/oARJPQpuJD9A90o9fnwkP2DrTT3BfyQ/ALpLPdSJJD9Aukw9Cm4kP0D3Sj2MZyQ/IFJJPXtSJD+gBEk99WQkP6AAST2vYiQ/QJlIPWNHJD8wTkk9NE8kP2AaST0CTCQ/AIFJPQJMJD8AgUk9NE8kP2AaST3lcCQ/0LZVPV54JD8QMVk90HwjP6CyTD03nCM/0I9IPfSaIz+gAEk9R5ojP2DvSz1dmSM/4OtPPQQ4Iz+wDmI9i2wjP5C3aD2gTCM/MCRlPdFgIz9AJWE9gnYjP/AhYz1unyM/gOFmPVNbJD8QyEY9h1UkP6AAST0mVCQ/AD5KPVFAJT8gIkM9YVYlP+CPQj0oMSU/4Ew+Pf18JD+ALi49628lP4B8RT3YdSU/MCpGPcusKj+IvoU9gM8qPyDLhD0eBis/CEyDPbwVKz+A3oI9HtcqPyC5hD0jlCo/gKGEPTytKj8AuIM9k9wqP6D/gT2d+Cc/IKKBPTfyJz+giIE9b3AoP7C3gD3auyg/GHuAPTLzKD/oP4A9agQpPxAlgD2d+Cc/IKKBPXL1Jz8Ix4E9N/InP6CIgT0h6ic/gOyAPcrwJz8gbYE9vPAnP+DZgD1K9Cc/cMuAPVoQKD/QjYA9ZBwoP7ABgD19LCg/YGF/PVoQKD/QjYA95D4oP6AXgD3K8Cc/IG2BPTNIKD/gFHQ9qjkoP8Dlcj1vASg/YD92PfQ2Jz/wpYI9P2AoP2CZcD0zaSg/wBBwPbzwJz+wK4c94PAnP8Arhz2VHyg/IDGHPQhfKD9gOIc9tnQpPxD6iD0Hkyk/kFSIPbjOKT/ADoc9EOApPyCwhj2dyyk/6PaKPbt/KT9QTIo96qopPwCiiT1j7Ck/0J+IPdyJJz+gsHI9n7gnPzAYcT3S1Sc/4NOBPVTNJz/wL4E9vPAnPyBegT0CBSg/cGmBPcTzKz8Asx498NcrPyA0HT0moSs/QEIaPcAZLD+gWR09A/orP2AWGz3kySs/IKgXPSK8Kz8ArRY9T8UqP4DxRz2hjyo/gGxEPZCiKj8AhEM9ALYrPwCYVD3faio/gANCPVdiKj9QdEE9/Y4rP6D8SD1ucys/IApHPflkKz8AFkQ9tmErP1BHRj2kVys/IEdFPW5zKz8gCkc97HkrPyCvSD39jis/oPxIPYJ8Kz+gAEk9yH4rPxBoST0Vmis/ILNIPUOSKz/w5kg9dpUrP0CASD12lSs/QIBIPUOSKz/w5kg9KXgrP6ADQT2ScCs/gEo8PfxsKz9gDzo9GmkrP0DQOD2oZCw/oE5FPUBFLD+AcUk9MEcsP/ARRj0aSCw/YBVCPWFILD9A4EA9C5UsP0BcLT3tdCw/wEkpPaeALD8Q3DA99WosP2DfLj0KQiw/wB8rPe92Kz8QDVE9JYYrP0A5Sz2Nmis/ALJKPXtkKz/Q0mM98YsrP6AAST1SjSs/UMNHPYmOKz9Aq0Y9JqEqP0DfTj0Xiyo/cHFPPY1xKj/ghEw9"),
-"bone_aabbs": [AABB(-2.88e-05, -4.15792e-05, -4.1583e-05, 5.76e-05, 8.31584e-05, 8.3166e-05)],
-"format": 34359745559,
-"index_count": 3756,
-"index_data": PackedByteArray("KgErAaQA2wEqAdwB3AEqAd0BFQAqAdsBKgHeAd0BKgEVAOUA5QArASoBLAHeASoBKgGkACwB3gEsAT8B3gE/Ad8B4AHeAd8B4AHfAboAPwG6AN8BMwDgAeEB4AG6ALAB4AGwAeEB4QGwAeIB4QHiAbwAsAHjAeIB4wG8AOIB5AGwAboAPwHkAboAsAHkAeMB1wC8AOMB1wDlAbwA1wDmAeUB5gHXADIA5AE/AecB6AHjAeQB6QHjAegB6QHXAOMB6AHkAa8B6QHoAeoB6AGvAeoBrwHkAesB5AHnAesBrwHrAewBrwHsAeoB5wHtAesB7AHrAe0BPwE9AecBPwEsAT0B5wHuAe0BPQHuAecB7AHtAe8B7AHvAeoB7wHtAfAB7QHuAfEB7QHxAfAB7wHwAfIB7wHyAeoB8gHwAfMB8QHzAfAB8gHzAfQB8gH0AeoB9AHzAbsA9AH1AeoB9AG7APUB9QH2AeoBuwD2AfUB9gH3AeoBuwD4AfkB+gG7APkBuwA0APgBuwD6Aa4BuwCuAfYBrgH6AfsB/AH7AfoBrAGuAfsB/AGsAfsB9gGuAf0BrAH9Aa4B9gH9AfcBzgCsAfwB/QGsAc4AzgD8AecAOwDnAPwB5wD+Ac4A5wD/Af4BZAHOAP4BZAH9Ac4A/gH/AWQB/QGtAfcB9wGtAeoB/QEAAq0BZAEAAv0BrQEBAuoBrQEAAgICrQECAgECAAIDAgICZAEEAgACAAIEAgMCAgIFAgECAQIFAuoBAwKrAQICAgKrAQUCAwKpAasBZAFjAQQCBQIGAuoBBQLRAAYCBQKrAdEABgIHAuoB0QAHAgYCBwIIAuoBZAFbAWMB/wFbAWQBBwIJAggC0QAKAgcCBwIKAgkCCQILAggCCAILAuoBCQIMAgsCCgINAgkCDQIMAgkCqAEKAtEADQIOAgwCqAHRAA8C0QAQAg8CEQKoAQ8CEQIPAhACqwEQAtEAEAKrARICEgKrARMCqwE1ABMCqQE1AKsBNQCpARQCKwA1ABQCqQErABQCwwArAKkBqgHDAKkBpAErAMMAKwCkARUCFQKkARYCFgKkARcCpAGlARcCwwDMAKQBowGlAaQBzACjAaQBwwBlAcwAqgEYAsMAGAJlAcMABAIYAqoBBAJjARgCGAIZAmUBYwEZAhgCGQIaAmUBZQEaAhsCZQEbAhwCGQIdAhoCHAIbAh4CYgEdAhkCYwFiARkCYgEfAh0CHAIeAqIBJQAeAiACHgIlACgAogEeAigAogEoACECIQIiAqIBIgKjAaIBzACiAaMBowEiAiMCzQCjASMCowHNAJEBzwCjAZEBpQGjAc8ApQHPACQCpwGlASQCzwCmASQCpwEkAqYBzwAKAqYBCgKoAaYBpwGmAagBCgLPAA0CpwGoARECOQCnARECzwCRAQ0CDQKRASUCDQIlAg4CkQHNANAA0ADNACYCJwImAs0AkQHQAJABkQGQASUCJwIoAiYCKALQACYCKQIoAicCKQApAicCKQKcASgCnAHQACgCmgGcASoC0ACcAZoBmQHQAJoBKwLQAJkB0AArAiwC0gDQACwC0ADSAJABkAHSAC0CLQLSAC4CLwIuAtIALwIwAi4CkAEtAjECkAExAjICMgIxAjMCJQKQATICMgIzAtQA1AAzAjQCJQIyAjUCNQIyAtQAJQI1ApUBJQKVAQ4CDAIOApUB1AA0AowBNQLUAI8BlQE1Ao8BjwHUAIwBjAE0AjYClQGPATcCNwKPASwANwIsADgCjwEqACwANwI4ApMBOQKTATgCOQI6ApMBOgI7ApMBKgCPATwCKgA8Aj0CjwGMATwCPAI+Aj0CPAI/Aj4CPAKMAT8CPwKMAUACQAKMAdYAigHWAIwB1gCKAd0AjAE2AkECQgJBAjYCQwJBAkICRAJBAkMCQQJEAoQBQQKEAYUB3QCKAYUBRQLWAN0AiwHWAEUCiwFFAkYC3QBGAkUCLgCLAUcCiwFGAkgCiwFIAkcCRgLbAEgC3QDbAEYCSQJIAtsA3QBKAtsASAJJAksCRwJIAksCRwJLAi0A3QBMAkoCiQFMAt0A3QCFAYkB2gBMAk0CTQJMArQBTAKJAbQB2gBNAtkAtAHZAE0C2QBOAtoAMQDaAE4C2QCzAU4CTgKzAU8CTgJPAlACUQKzAdkAtAFRAtkAswHYAE8C2ABQAk8CswFRAtgAlAFQAtgAUAKUAVICUgKUAVMClAEvAFMCtAFUAlEC2ABRAlUCVQJRAlQC2ABVAlYCVwLYAFYCVwKUAdgAVgJVAuoBVwJWAuoBVQJUAlgCVQJYAuoBWQKUAVcCWQJXAuoBlAGTAS8AOwIvAJMBLwA7AloCLwBaAlsCWwJaAjAAXAKTAZQBWQJcApQBXALVAJMBlQHVAFwClQFcAl0CXQJcAlkCDAKVAV0CCwIMAl0CXQJZAl4CCwJdAl4CXgJZAuoBCwJeAuoBXwLpAeoBWAJfAuoBXwLXAOkBWAJgAl8CXwJgAtcAWAJUAmACYQLXAGACYgJgAlQCYgJhAmACtAFiAlQCYQKxAdcAtAGIAWICMgDXALEBiAGyAWICMgCxAWMCFQAyAGMCsQEVAGMC5QAVALEBsgHlALEBsgFkAuUAiAFkArIBZAJlAuUA5QBlAisBZAI0AWUCiAE0AWQCMQErAWUCNAExAWUCMQGmACsBNAFmAjEBKwGmAC4B5gBmAjQBiAHmADQB5gDkAGYCKwEuAaQAAgAuAS8BLgECAAAApAAuAQAApAAAAGcCZwJoAqQAaAIsAaQALAFoAmkCpQAsAWkCLAGlAD0BPQGlAKwArAClAGoCLQFqAqUALQFrAmoCawKsAGoCOwFrAi0BAwA7AS0BOwE8AWsCPAGsAGsCOgE8AWwCrAA8AToBbQKsADoBbgKsAG0CrABuAm8CcAKsAG8CrABwAj4BPQGsAD4BPgFwAq4ArgBwAnECrQBxAnACrQBBAXECPgGuAHICPQE+AXMCPQFzAu4BPgFyAnQCcwI+AXQCdAJyAnUCcwLxAe4BcwJ0AkABcwJAAfEBdAJ1Aq8AQAF0Aq8ArwB1ArgAQAGvAHYC8QFAAVMBrwC4AFIBdgKvAFIBUgG4AFABdgJSAXcC8QFTAVUB8QFVAfMBUwE2AFUBNgBTATgAOABTAXcCVQE2AHgCeQI4AHcCdwJ6AnkCdwJ7AnoCUgF7AncCewJSAXwCVQF4An0C8wFVAX0CfQJ4An4C8wF9ArsAfgJ/An0CNAC7AH0CfwKAAn0CgAI0AH0CNACAAoECNACBAoICggKBAjcAfAJSAVQBUQFUAVIBUgFQAVEBgwJRAVABhAJRAYMCUQGEAoUChgJRAYUCVAFRAbkAUQGGAlkBuQBRAVkBVAG5AIcCXwFUAYcCXwGHAl4BuQBeAYcCXgGIAl8BPABfAYgCuQDoAF4BuQCJAugAuQD/AYkCXgHoAIoCXgGKAogCiwKKAugAigKLAowCiAKKAowCiAKMAjoAWwH/AbkAuQBZAVsBjQJbAVkBjgJbAY0CjwKNAlkBWQE+AI8CWwGOAr4AWwG+AGMBWQFYAT4AWAE/AD4APwBYAVoBWQGGAlgBWAGGApACvQCQAoYCvQBXAZACYwG+AGIBYgG+AJECYQGRAr4AkgJiAZECYQGSApECYAFiAZICYAGSAmEBYgFgAR8CHwJgAZMCYAFhAZQCQACUAmEBlQKJAYUBiQGVApYClwKVAoUBhQEXAJcC3ACJAZYChQGYAhcAmAIbABcAGwCYApkChQGEAZgCmAKEAZoCmwKaAoQBmwKcApoCiQHcAIgBtAGJAYgBiAHcAOYA5gDcAJ0CngKdAtwAnwLmAJ0CngKfAp0ChwHmAJ8ChwGfAp4C5gCHAeQA5ACHAaAChwGeAqECHAChAp4CogIyATABogIwAaMCowIwAaQCpAIwAaUCpQIwAaYCpgIwAaoApwIyAaICMwGqADABpwKnADIBqAKnAKcCqAKnAqkCfwGoAqkCfwGpAqoCqALjAKcApwCrAjIB4wCrAqcAqAAyAasCrAIyAagA4wABAKsCMgGsAq0C4wALAAEArgIyAa0CMgGuAq8CsAILAOMACwCwArECdwGwAuMAqAJ3AeMAdwGyArACfwF3AagCeAGyAncBfwGzAncBeAF3AbMC3wCzAn8BeAF1AbICdQF2AbIC4AB4AbMC3wDgALMCeAG0AnUBfwG1At8AtQJ/AaoCtgK1AqoChgG1ArYChgG2ArcCuALfALUCuQLfALgCugLfALkC3gDfALoCggHeALsC3gCCAd8AvALfAIIB3wC8Ar0CgAG8AoIBgAG9ArwCgAGCAb4CHwCAAb4CgAG/Ar0CvwLfAL0CvwLgAN8A4AC/An0BwAJ9Ab8CwQJ9AcACfQHBAuEA4QDBAsICHQDhAMIC4QAdAI0BjQEdAB4AjQEeAMMCjgHhAI0BjgF+AeEAgwF+AY4BgwGBAX4BxAKBAYMBxQJ9AeEAxALGAoEBkgHGAsQCcwHFAoEBlwGSAccCkgHTAMYCkgGXAdMAyAKBAcYCyAJzAYEBbwHIAsYCbwHGAtMAyQLTAJcByQKXAZYByQKWAZgBJACYAZYBmAHKAskC0wDJAsoCmAHLAsoCygLLAtMAywJvAdMAbwFyAcgCyAJyAXEByAJxAXMBbwHMAnIBbwHLAskAyQDLAs0CzgLJAM0CzwJvAckAzwLMAm8ByQDOApsBmwHOAtACIwCbAdACmwEjANEC0QIjACIA0QIiANICygCbAdEC0wLKANECnQHKANMCnQHTAtQCmwHKAGoBagHJAJsB1QJqAcoAngFqAdUC1gJqAZ4B1wJqAdYCxQBqAdcCxQBnAWoB2AJnAcUAagHZAskAZwHEAGoBagHEANkCZwHaAsQA2gJnAdsC2wJnAdwC3AJnAd0CZgHdAmcB2AJmAWcBwgDdAmYBaAHCAGYB3gJmAdgCaAFmAd4C3gLYAt8CXAHeAt8CXAHfAsEA4ALeAlwB4AJoAd4CwABcAcEA4QLAAMEAXQHAAOECXQHhAuICXAHAAL8AvwDgAlwB4wK/AMAA5AK/AOMC5QK/AOQC5gK/AOUC5wLmAugC5gLnAr8A6QK/AOcCvwDpAuoCVgHpAucCVgHqAukCVgHnAusCQQBWAesCVgG1AOoCtQC/AOoCtQBPAb8AvwBPAeACTwG1AEgB7AJIAbUA7QJIAewC7gLgAk8BSAHtAksBSwHtAu8CDwBLAe8CSwEPAPAC8AIPAD0A8AI9APEC8gJLAfAC8gLzAksB8wJIAUsBsQDzAvICsQDyAvQC9QKxAPQC9gLzArEA8wJHAUgB9gJHAfMC9QL3ArEAQwH2ArEAQwGxAPcCsAD3AvUCsAD1AvgCOQFDAfcCOQH3ArAAQwFGAfYCOQFEAUMBQwFEAUYBOQH5AkQB+AL6ArAA+gL4AvsC/AKwAPoCsAD8Av0CQgH8AvoCQgH9AvwCQgH6Av4CCgBCAf4CQgGrAP0CqwCwAP0CqwA5AbAAOQGrADcB/wI3AasAAAM3Af8CAQM5ATcBAQP5AjkBNwEAAzMBMwEAAwIDCQAzAQIDMwEJAAMDAwMJAAYAAwMGAAQDqgAzAQMDBQOqAAMDBgOqAAUDBgMFAwcDCAM3ATMBCAMzAa8CrwKuAggDCAOuAgkDCgMJA64CCgOpAAkDqQAIAwkDCwOpAAoDBQALAwoDCAOpAAwDDQMIAwwDNgEIAw0DCAM2ATcBNQEMA6kACwM1AakADAM1AQ4DDgM1AQ8DCwMPAzUBCwMEAA8DNwE2AQEDAQM2ARADOAEQAzYBsgABAxADOAGyABADsgARAwEDEgOyADgBEQOyABIDEgM4ARMDBwATAzgBEwMUAxIDEwMVAxQDswASAxQDFQOzABQDEQMSA7MAFQN0AbMAFgN0ARUDFwN0ARYDdAEXAwgAAQMRAxgDAQMYA/kCswAZAxEDGQMYAxEDswAaAxkDdAEaA7MA+QIYAxsD+QIbAxwDGQMdAxgDHQMbAxgDHgMZAxoDHgMdAxkDGwNGARwDHgMaAx8DdAEfAxoDHQMgAxsDHgMgAx0DIANFARsDGwNFAUYBIQMfA3QBHgMfAyEDIQN0ASIDRQEOAEYBRgEOACMDDgBFASQDDgAQACMDIwMQAEYBEAD2AkYBRQElAyQD9gIQAEcBJQNFAbQARwEQACYDJwNHASYDKANHAScDtgBHASgDRwG2AEgBSAG2ACkDKQNPAUgBKQO2ACoDKwMqA7YAKQPuAk8BKwNKASoDSgEpAyoDEQBNASsDTAFKASsDTAErA00BTQEsA0wBTQG0ACwDLQNKAUwBSgEtAykDLgNMASwDtAAuAywDLQNMAS4DtABFAS4DKQMtAy8DKQMvA+4CMAMuA0UBIAMwA0UBMAMxAy4DHgMwAyADHgMxAzADLgMxAzIDLgMyAy0DHgMyAzEDLQMyA0kBLQNJAS8DHgNJATIDSQEzAy8D7gIvAzMDSQE0AzMDHgM0A0kB7gIzA7cA7gK3AOACtwBoAeACtwAzA04BNANOATMDtwA1A2gBtwBOATUDaAE1A2kBTgFpATUDaAFpATYDNAM3A04BHgM3AzQDNgMaADgDNgMmABoAaQEmADYDaQE5AyYANwM6A04BTgE6A2kBNwM7AzoDHgM7AzcDaQE6A2sBOwNrAToDOQNpATwDaQFrATwDPQM5AzwDPAM+Az0DPgM8Az8DPAMSAD8DawESADwDPwMSAEADQAMSAEEDQANBAycAEgBrAUIDQgNrAUMDQwNrAUQDOwNFA2sBHgNFAzsDawFFA0YDHgNGA0UDRANrAUcDawFGA0cDRANHA0gDSQNEA0gDRwNGA0oDHgNKA0YDRwNtAUgDSQNIA20BRwNKA0sDSwNtAUcDbQEUAEkDEwBJAxQAbQHIABQASwPIAG0BFADIAEwDFABMA8YAyADPAkwDzwLGAEwDyABLA88CyQDGAM8CSwPMAs8C2QLGAMkAxgDZAk0DTQPZAhYASwNOA8wCSgNOA0sDzAJOA08DzAJPA1ADSgNsAU4DbAFPA04DHgNsAUoDTwNxAVADbAFRA08DHgNRA2wBUQNuAU8DTwNuAXEBHgNSA1EDUQNSA24BHgNTA1IDbgFSA1MDHgNUA1MDbgENAHEBcQENAFUDbgFWAw0AVgNuAVcDDQAgAFUDVQMgAHEBIABzAXEBbgHHAFcDcwEgAMsAywAgAFgDcwHLAMUCywBYA1kDWgPLAFkDxQLLAH0B4gDLAFoDywDiAH0BfQHiAHsBewHgAH0BewHiAFsDXANbA+IAewFdA+AA4ABdA3gBXQO0AngBewFeA10DXQNeA7QCfAF7AVsDXAN8AVsDewFfA14DfAFfA3sBcAG0Al4DXwNwAV4DcAFgA7QCYAN1AbQCHgNgA3ABHgNwAVQDXwNUA3ABHgNhA2ADYANhA3UBHgMhA2EDUwNUA18DYQMhAyIDYQMiA3UBdQEiA3YBIgNiA3YBdgFiA7ECIgN0AWIDYwOxAmIDYgNkA2MDdAEIAGIDZANiA2UDYgMIAGUDZQMIAGYDZgMIAGcDZgNnAwwAbgFTA2gDUwNfA2gDbgFoA8cAxwBoA2kDXwN5AWgDaAN5AWkDXwN8AXkBegHHAGkDegFpA3kBegF5AXwBegF8AVwDIQB6AVwD2QLEAGoDawNqA8QAnwHZAmoDawOfAWoD2QKfARYAbAOfAWsDGQBsA2sDoAEWAJ8BbAOgAZ8BFgCgAW0DbQOgAaEBbAOhAaABbAMYAKEBtQHpALYB6QC1AesAtQG2AW4DbgNvA7UBbwPqALUBQgBDAEQA7QC3AXAD7gC3Ae0AcQNwA7cBcgNxA7cB7AByA7cBRQDvAEYARQBGAHMDcwNGAHQDdANGAEcA7wBFAHUDdgPvAHUD7wB2A/AA7wDwAHcDdwN4A+8ASgB5A3oDeQN7A3oDSAB6A3sDSABLAHoDegNLAEkASwBIAHwDfANIAH0DfQN+A3wDfgN9A38DgAN/A30DfwOAA4EDTACBA4ADTACCA4EDTQBOAIMDTgBNAIQDhQNNAIMDTwBNAIUDTQBPAFAAUQBSAFMAhgOHA4gDhgOIA4kDigOHA4YDiwOKA4YDuAGMA40DjAO4AbkBuQG4AbsBuAGNA44DjgOPA7gBjwO6AbgBvAHxAJAD8QC8AfMAvAGQA5EDkQOSA7wBkgPyALwBVABVAFYA9gD1AJMD9AD1APYAlAOTA/UAlQOUA/UAlgOVA/UA9wCXA70B9wC9AfkAlwOYA70BmAP4AL0BVwBYAFkAmQOaA/sAmQP7APwAmQObA5oDmQOcA5sD+gCcA5kDvwG+AZ0DvgG/AcABvwGdA54DngOfA78BnwOgA78BWgBbAFwA/wDBAcIB/QDBAf8AoQPCAcEBogOhA8EB/gCiA8EBowOkA6UDowOlA6YDpAOnA6UDpwOoA6UDqQNdAF4AXgBdAGAAqgNdAKkDXQCqA18AXQBfAKsDrAOtA2IArANiAK4DrgOvA6wDsAOvA64DrwOwA7EDsQOwA7IDYwCyA7ADsgNjAGEAswNhAGMAZQBhALMDswNjALQDtAO1A7MDswO1A2QAZgBnAGgAaABnALYDtwNoALYDaAC3A2kAZwBmAMMBwwFmALgDZgBqALgDZgC5A2oAAAG5A2YAawBsAG0AAQG6A7sDAgG6AwEBvAO7A7oDvQO8A7oDvgO9A7oDAwG+A7oDxAEEAb8DBAHEAQYBxAG/A8UBxQHAA8QBwAMFAcQBbgBvAHAACQHBA8IDBwHBAwkBwwPCA8EDxAPDA8EDCAHEA8EDxwHFA8YBxwHGAckBxgHFA8YDxgHGA8cDxwPIAcYBcQByAHMAyAPJA8oDyAPKA8sDzAPJA8gDzQPMA8gDywHKAc4DygHLAcwBywHOA88DzwPQA8sB0APRA8sBdAB1AHYADAHSA9MDCgHSAwwB1APTA9ID1QPUA9IDCwHVA9IDdwB4ANYD1gN4ANcD1wN4AHkAeAB3AA0BDQF3ANgD2QMNAdgDDQHZAw4BDQEOAdoD2gPbAw0BfADcA90D3APeA90DegDdA94DegB9AN0D3QN9AHsAfQB6AN8D3wN6AOAD4APhA98D4QPgA+ID4wPiA+AD4gPjA+QDfgDkA+MDfgDlA+QDfwCAAOYDgAB/AOcD6AN/AOYDgQB/AOgDfwCBAIIAgwCEAIUA6QPqA+sD6QPrA+wD7QPqA+kD7gPtA+kDzQHvA/AD7wPNAQ8BDwHNAREBzQHwA/ED8QPyA80B8gMQAc0BzwHOAfMDzgHPAdABzwHzA/QD9AP1A88B9QP2A88BhgCHAIgA0wH3A/gD0QH3A9MB+QP4A/cD+gP5A/cD0gH6A/cDEgH7A9QBEgHUARQB+wP8A9QB/AMTAdQBiQCKAIsA/QP+AxcB/QMXARUB/QP/A/4D/QMABP8DFgEABP0D1QEYAQEEGAHVARoB1QEBBAIEAgQDBNUBAwQZAdUBjACNAI4AHQEcAQQEGwEcAR0BBQQEBBwBBgQFBBwBBwQGBBwBCAQJBAoECAQKBAsECQQMBAoEDAQNBAoEDgSPAJAAkACPAJIADwSPAA4EjwAPBJEAjwCRABAEEQQSBJUAEQSVABMEEwQUBBEEFQQUBBMEFAQVBBYEFgQVBBcEkwAXBBUEFwSTAJQAGASUAJMAlwCUABgEGASTABkEGQQaBBgEGAQaBJYA1gGZAJgAmACZABsEmAAbBBwEmAAcBJoAmQDWAR0EHQTWAR4E1gEfBB4E1gEgBB8E1wEgBNYBmwCcAJ0AHgEhBCIEHwEhBB4BIAEiBCEEIwQgASEEJAQjBCEEJQQkBCEE2AEhAdkBIQHYASMB2AHZASYEJgQnBNgBJwQiAdgBngCfAKAAJQHaASgEJgHaASUBKQQoBNoBKgQpBNoBJAEqBNoBKwQsBC0EKwQtBC4ELQQsBC8ELQQvBDAEMAQxBC0EoQCiAKMAMgQzBCgBMgQoASkBNAQzBDIEJwE0BDIE"),
-"lods": [0.000281307, PackedByteArray("KgErAaQA5QArASoBKgGkACwBKgEVAOUALAEVACoBLQEsAaQAAAAtAaQApAAuAQAAKwEuAaQALgECAAAAAgAuAS8BLgEwAS8BLwEwAaoAKwGmAC4BpgAwAS4BMQGmACsBpgAyATABMQEyAaYAMwGqADABMQErATQB5QA0ASsBMQGnADIBMgGoADABpwCoADIBMAGoAKkAqQAzATABBQCpAKgABACpAAUABAA1AakABAA2ATUBNQE2AakAqQA2ATcBqQA3ATMBNwE2AbIAsgA2ATgBNwGrADMBsgA5ATcBOQGrADcBswCyADgBsgCzADkBMwGrAAkAMwEJADoBOgEJAAYAqgAzAToBOgEGAK0AOwGqADoBOwE6ATwBrAA8AToBOwE8AawArQCsADoBOwGsAC0BAwA7AS0BPQEtAawALAEtAT0BPQGsAD4BrACtAD4BPwEsAT0BFQAsAT8BPQE+AUABPQFAAT8BQAE+Aa8APgGtAK4APgGuAK8ArgCtAEEBQgFBAa0ACgBCAa0AQgGwAEEBrgBBAbAAQgGrALAAqwA5AbAArgCwALEArgCxAK8AOQFDAbAAQwGxALAAOQFEAUMBOQFFAUQBQwFEAUYBRQFGAUQBQwFGAUcBQwFHAbEAEABHAUYBDgAQAEYBRQEOAEYBtgBHARAADgBFAbQARwG2AEgBsQBHAUgBOQGzAEUBSQG0AEUBswBJAUUBSAG2AEoBEQBKAbYAsQBIAUsBTAFKAREATAERAE0BTQG0AEwBtABJAUwBSgFMAU4BTAFJAU4BSgFPAUgBTwG1AEgBSAG1AEsBSwG1AA8ASwEPAFABUAEPAD0AuACxAEsBuABLAVABsQC4AK8APQBRAVABUgG4AFABrwC4AFIBUgFQAVEBUwGvAFIBQAGvAFMBUwFSATgAUgFUATgAUQFUAVIBNgBTATgAvQBRAT0AVQFAAVMBUwE2AFUBQAFVAT8BuwBVATYAuwA/AVUBNwA0ADYANAC7ADYAQQBWAb0AVgFXAb0AVgG/AFcBVgG1AL8AvQBXAVgBWAFXAb8AtQBPAb8AWQG9AFgBUQG9AFkBWAG/AFoBPwBYAVoBWAE/AD4AWQFYAT4AWgG/AMAAPgBbAVkBuQBRAVkBuQBZAVsBVAFRAbkAXAHAAL8AvwBPAVwBwABcAcEAXQHAAMEAVAG5AF4BXwFUAV4BXgE8AF8BuQDoAF4BXgHoADwAPADoADoAWwHoALkAXQHBAGABYAFhAV0BQABdAWEBYQFbAT4AYAFiAWEBYgFgAcEAWwFhAWMBYwFhAWIB6ABbAWQBZAFbAWMBYgHBAGUBYwFiAWUBZQHBAMUAYwFlAcMAZAFjAcMAZQHFAMwAwwBlAcwAZgHFAMEAXAFmAcEATwFmAVwBxQBmAWcBTwFoAWYBtwBoAU8BSgG3AE8BSgFOAbcAtwBpAWgBtwBOAWkBaAHCAGYBaAFpAcIAZgHEAGcBwgDEAGYBwgAaAMQAwgAmABoAaQEmAMIAZwHEAGoBxQBnAWoBaQFrASYAaQFOAWsBawESACYAJgASACcAbAFrAU4BawFsARIASQFsAU4BEwASABQAEgBsAW0BbQEUABIAbAFuAW0BbQHIABQAFADIAMYAbQFvAcgAbwFtAW4ByQDGAMgAyABvAckASQHHAGwBbgFsAccASQFwAccADQBuAccASQGzAHABbgENAHEBbgFxAXIBbwFuAXIBcQENACAAcwFyAXEBbwFyAXMBIABzAXEBdAFwAbMACAB0AbMAswA4AQgABwAIADgBdAEIAAsACwAIAAwAcAF0AXUBdQF0AQsAdQELAHYBdgELAOMA4wALAAEA4wABAKgA4wCoAKcAdwF2AeMApwB3AeMAdQF2AXcBeAF1AXcBeQFwAXUBxwBwAXkBegHHAHkBewF5AXUBewF1AXgBegF5AXwBfAF5AXsBegF8ASAAewEgAHwBIQB6ASAAewF4AeAAeAF3AeAAfQEgAHsBewHgAH0BywAgAH0BcwEgAMsAfgHLAH0BcwHLAH4BfwHgAHcBfwF3AacA4AAdAH0B3wDgAH8BHQDgAN8AfwGnAOQApwAxAeQANAHkADEBfQEdAOEAfgF9AeEAgAEdAN8AcwF+AYEBgAHfAIIBcwGBAdMAbwFzAdMAgwGBAX4BgwHTAIEBgAGCAYQBHwCAAYQB3gCCAd8AhAGCAd4A3gDfABsAfwEbAN8A3gAbABcAGwB/AeQAhQHeABcAhQGEAd4AhgEbAOQAFwDcAIUBHACGAdwAhgHkAIcBhwHcAIYB5gCHAeQAhwHmANwA5gDkADQBiAHmADQBiAHcAOYAiAE0AeUA3ACJAYUBiQHcAIgBigGEAYUBhAGKAR4A3QCFAYkB3QCKAYUB1gCKAd0AiwHWAN0AiwHdANsAiQHbAN0AiwHbAC4ALgDbAC0AigHWAIwBKgCMAdYAHgCKAY0BjAGNAYoBjQEdAB4A4QAdAI0BjgHhAI0BjAGOAY0BjgF+AeEAjwGMASoAgwF+AY4BjwEqACwA1ACOAYwB1ACDAY4BjwHUAIwBkAGDAdQAkQHUAI8BkQGQAdQA1QCPASwAkAGSAYMB1QAsAJMBMACTASwAMAAvAJMBlAHVAJMBlAGTAS8AlQGPAdUAlQHVAJQBkQGPAZUBkAHSAJIBkgHTAIMB0ADSAJABkQHQAJABlgGSAdIAlgGXAZIBkgGXAdMA0wCXAZYB0wCWAZgBJACYAZYBmAEjANMAIwBvAdMA0ACZAdIAbwEjAMkAmQHQAJoBmgEiAJkBmgEjACIAyQAjAJsBmwEjAJoB0ACcAZoBygCbAZoBnQGaAZwBnQHKAJoBnQGcAdAAmwHKAGoBagHJAJsBngFqAcoAnQHQAM0AKQCdAc0AkQHNANAAJQBqAZ4BxQBqASUAagGfAckAzADFACUAagHEAJ8BGQCfAcQAnwHGAMkAGACfARkAoAHGAJ8BGACgAZ8BxgCgAaEBGAChAaABzAAlAKIBogElACgAKADNAKIBzQCjAaIBzACiAaMBowHNAJEBzACjAaQBwwDMAKQBzwCjAZEBkQGVAc8AowGlAaQBpQGjAc8ApAErAMMAKwCkAaUBzwCmAaUBpwGlAaYBqAHPAJUBzwCoAaYBpwGmAagBpwGoATkAqAGVAZQBOQCoAdEA0QCoAZQBOQDRADUANQCpASsAwwArAKkBqgHDAKkBqQE1AKsBqgGpAasBqwE1ANEAZAHDAKoBqwFkAaoBZAGrAawBrQGrAdEArAGrAa0BZAGsAc4AzgDoAGQB5wDoAM4AzgA0AOcAzgCsATQAOwDnADQANACsAa4BrQGuAawBuwA0AK4BuwCuAa0BrQHRAK8BrwG7AK0B0QCUAa8BrwGwAbsAPwG7ALABlAHYAK8BlAEvANgAMQDYAC8APwGwAboAFQA/AboAFQC6ALABFQCwATMAMwCwAbwArwG8ALABrwHXALwA2ADXAK8B1wAyALwAMgCxARUAMgDXALEB5QAVALEBsgHlALEBsgGxAdcAiAHlALIBiAGyAdcA2ACzAdcAiAHXALMBMQCzAdgAtAGIAbMBtAGJAYgB2wCJAbQBtAGzAdkA2QDbALQB2QCzATEA2gDbANkA2QAxANoAtQHpALYB6QC1AesAtgHqALUBQgBDAEQA7gC3Ae0ARQDvAEYA8ADvAEUARQBGAEcASABJAEoASABLAEkASABMAEsATQBOAE8ATQBPAFAAUQBSAFMAuAG5AboBuQG4AbsB8QC8AfMAvAHxAPIAVABVAFYA9AD1APYA9wD4AL0B9wC9AfkAVwBYAFkA+gD7APwAvgG/AcABWgBbAFwA/wDBAcIB/gDCAcEB/QDBAf8AXQBeAF8AXgBdAGAAYQBiAGMAZABhAGMAZQBhAGQAZgBnAGgAaQBoAGcAZwBmAMMBZgAAAcMBawBsAG0AAQECAQMBBAHEAQYBxAEEAcUBxQEFAcQBbgBvAHAABwEIAQkBxgHHAcgBxwHGAckBcQByAHMAygHLAcwBdAB1AHYACgELAQwBdwB4AHkAeAB3AA0BDgENAXcAegB7AHwAegB9AHsAegB+AH0AfwCAAIEAfwCBAIIAgwCEAIUAEAHNAQ8BDwHNAREBzgHPAdABhgCHAIgA0QHSAdMBEgETAdQBEgHUARQBiQCKAIsAGAHVARoB1QEYARkBjACNAI4AGwEcAR0BjwCQAJEAkACPAJIAkwCUAJUAlgCUAJMAlwCUAJYA1gGZAJgAmACZAJoAmQDWAdcBmwCcAJ0AHgEfASAB2AEhAdkBIQHYASMB2QEiAdgBngCfAKAAJgHaASUBoQCiAKMAJwEoASkB"), 0.000396801, PackedByteArray("FQCkAKUAAAClAKQApAACAAAApACmAAIApwCmAKQApgCoAAIApwCoAKYAAgCoAKkABQCpAKgAqQAJAAIACQCqAAIABACpAAUAqgAJAAYAqQCrAAkAqQAEAKsAqgAGAKwAqgCsAAMAAwCsAKUArQCsAAYACgCrAK0ArACtAK4AqwCuAK0ApQCsAK8ArACuAK8AqwCwAK4ArgCwALEAqwCxALAArgCxAK8AqwAEALIAswCyAAQAsgCzAKsAqwCzAA4AqwAOABAAqwAQALEAswC0AA4AswAEAAgABwAIAAQAtACzAAgAsQAQALUAEAC2ALUAtAC2ABEAtgC0ALcAtgC3ALUAsQC1AA8AuACxAA8AuAAPAD0AsQC4AK8AOACvALgAuAA9ALkAuQA4ALgANgCvADgAuQA8ADgArwA2ALoApQCvALoAFQClALoAuwC6ADYAFQC6ALwAugC7ALwAFQC8ADMAvQC5AD0AuQC9AD4APgC9AD8AuQA+AL4AtQA/AL0AQQC1AL0AtQC/AD8APwC/AMAAtQC3AL8AwAC/AMEAwQBAAMAAwQC+AEAAvwDCAMEAtwDCAL8AvgDBAMMAtwAmAMIAwgAmABoAJgC3ABIAJgASACcAwgAaAMQAtAASALcAwgDFAMEAwgDEAMUAwwDBAMUAGADEABkAGADGAMQAtADHABIAtAAIAMcADQASAMcAEwASABQAyAAUABIAEgANAMgAyADGABQAyQDIAA0AyQDGAMgAxADGAMkAyQANACAAygDEAMkAxQDEAMoAyQAgAMsAxQDKACUAzADFACUAzAAlACgAwwDFAMwAzAAoAM0AzAArAMMAzQArAMwAKQDKAM0AwwArADUAzgDDADUAzgC+AMMAKwDNAM8AygDQAM0AzwDNANAAzwDRACsAKwDRADkAOQDRADUA0QDOADUAygAiANAAygAjACIAygDJACMA0gDQACIAJAAjANIAIwDJANMA0wDSACMAyQDLANMA0gDTANQA0ADSANQA1ADTAMsA0ADUACoA0AAqANUA0ADVAM8A0QDPANUA1QAqACwAKgDUANYALwDVACwA0QDVAC8AMAAvACwA1AAeANYA1ADLAB4A0QAvANcALwDYANcAMQDYAC8A2QDYADEA2QAxANoA2gDbANkA2QDcANgA2wDcANkA3ADXANgA1gDbAC4ALgDbAC0A1gDdANsA3ADbAN0A1gAeAN0A3QAXANwA3QAeABcAFwAeAN4A3gAbABcAHAAbANwAHQDeAB4AHwAdAB4AHQDfAN4A3gDfABsAHQDgAN8A3wDgABsA4QAdAB4A4AAdAOEAHgDLAOEAywDiAOEA4gDgAOEAywAgAOIAxwDiACEA4gDHAAgA4gAIAOAA4AAIAOMAGwDgAOMACwAIAAwACAALAOMA4wALAAEA4wABAKgA4wCoAKcAGwDjAKcAGwCnAOQA5ADcABsA5QDkAKcApwCkAOUA5ADmANwA5gDkAOUA3ADmAOUA5QCkABUA5QAVADIA3ADlANcA1wDlADIA1wAyALwA1wC8ALsAuwDRANcAzgDRALsANADOALsANAC7ADYANAA2ADcAzgA0AOcAOwDnADQA5wDoAM4A6AC+AM4AvgDoALkAuQDoADwAPADoADoA6QDqAOsAQgBDAEQA7ADtAO4ARQDvAEYA8ADvAEUARQBGAEcASABJAEoASABLAEkATABLAEgATQBOAE8ATQBPAFAAUQBSAFMA8QDyAPMAVABVAFYA9AD1APYA9wD4APkAVwBYAFkA+gD7APwAWgBbAFwA/QD+AP8AXQBeAF8AXgBdAGAAYQBiAGMAZABhAGMAZQBhAGQAZgBnAGgAaQBoAGcAZwBmAAABawBsAG0AAQECAQMBBAEFAQYBbgBvAHAABwEIAQkBcQByAHMAdAB1AHYACgELAQwBdwB4AHkAeAB3AA0BDgENAXcAegB7AHwAegB9AHsAegB+AH0AfwCAAIEAfwCBAIIAgwCEAIUADwEQAREBhgCHAIgAEgETARQBiQCKAIsAFQEWARcBGAEZARoBjACNAI4AGwEcAR0BjwCQAJEAkACPAJIAkwCUAJUAlgCUAJMAlwCUAJYAmACZAJoAmwCcAJ0AHgEfASABIQEiASMBngCfAKAAJAElASYBoQCiAKMAJwEoASkB"), 0.00102183, PackedByteArray("AAABAAIAAgAAAAMABAABAAUAAgAGAAAABwAIAAQAAgAJAAYAAQAJAAIAAQAEAAkACQAEAAgACQAGAAoACwAIAAwADQALAAEADQAIAAsACQAIAA4ADgAIAA0ABgAJAA8ACQAOABAACQAQAA8ADgAQABEAEAAOABIADgANABIAEAASAA8AEwASABQAFQAGAA8AFQAAAAYAFAASABYAFwAAABUAAQAAABcAGAAWABkAGQAWABoAGwABABcAGwANAAEAHAAbABcAHQANABsAHQAbAB4AHgAbABcAHwAdAB4ADQAdACAAHgAgAB0AIQANACAAEgANACAAIgAgAB4AEgAgACMAIgAjACAAEgAjABYAJAAjACIAJQAWACMAJQAjACIAJgASACcADwASACYAJQAaABYADwAmABoAJQAiACgAKQAlACgAIgAeACoAKAAiACoAKgAeABcAKwAaACUAKwAlACgAKAAqACwAFwAtACoALgAqAC0AKAAsAC8AMAAvACwAMQAtAC8AFwAyAC0ALwAtADIAFwAVADIAFQAyADMALwAyADQAFQA0ADIANQAoAC8ANAA1AC8AKwAoADUANAAVADYANAA2ADcANgAVADgAFQAPADgAKwA1ADkAOgA1ADQAOgArADUAOgA0ADsAOgA8ADgAPQA4AA8AOAA9ADoAOgA+ACsAOgA9AD4APgA/ACsAPgA9AD8APwA+AEAAKwA/ABoADwAaAD8AQQA/AD0ADwA/AEEAQgBDAEQARQBGAEcASABJAEoASABLAEkATABLAEgATQBOAE8ATQBPAFAAUQBSAFMAVABVAFYAVwBYAFkAWgBbAFwAXQBeAF8AXgBdAGAAYQBiAGMAZABhAGMAZQBhAGQAZgBnAGgAaQBoAGcAZwBmAGoAawBsAG0AbgBvAHAAcQByAHMAdAB1AHYAdwB4AHkAegB7AHwAegB9AHsAegB+AH0AfwCAAIEAfwCBAIIAgwCEAIUAhgCHAIgAiQCKAIsAjACNAI4AjwCQAJEAkACPAJIAkwCUAJUAlgCUAJMAlwCUAJYAmACZAJoAmwCcAJ0AngCfAKAAoQCiAKMA")],
-"material": SubResource("StandardMaterial3D_bdpxo"),
-"name": "Sonic v2 tex",
-"primitive": 3,
-"skin_data": PackedByteArray("AAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAP//AAAAAAAA"),
-"uv_scale": Vector4(0, 0, 0, 0),
-"vertex_count": 1077,
-"vertex_data": PackedByteArray("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")
-}]
-blend_shape_mode = 0
 
 [sub_resource type="Skin" id="Skin_3tkgg"]
 resource_name = "Skin2"
@@ -960,8 +1549,9 @@ input_capture_on_drag = true
 floor_constant_speed = true
 floor_block_on_wall = false
 floor_snap_length = 5.0
-script = ExtResource("1_e80uo")
-BUTTON_ROLL = &"input_b"
+script = SubResource("GDScript_hs1v8")
+ROLLTYPE = 1
+BUTTON_ROLL = &"input_lt"
 BUTTON_JUMP = &"input_a"
 
 [node name="CollisionShape3D2" type="CollisionShape3D" parent="."]
@@ -1036,21 +1626,21 @@ bones/8/parent = 7
 bones/8/rest = Transform3D(-1, 8.26514e-06, -4.85741e-07, 2.66316e-07, -0.0265275, -0.999648, -8.27511e-06, -0.999648, 0.0265275, -2.85803e-13, -1.49016e-12, -4.96825e-18)
 bones/8/enabled = true
 bones/8/position = Vector3(-2.85803e-13, -1.49016e-12, -4.96825e-18)
-bones/8/rotation = Quaternion(0.0780756, -0.593066, 0.794503, -0.104601)
+bones/8/rotation = Quaternion(0.00498099, -0.533772, 0.845582, -0.00731754)
 bones/8/scale = Vector3(1, 1, 1)
 bones/9/name = "head"
 bones/9/parent = 8
 bones/9/rest = Transform3D(1, 1.7888e-08, -2.49596e-07, -1.12605e-08, 0.999648, 0.0265277, 2.49983e-07, -0.0265277, 0.999648, -1.28403e-17, 1.98579e-05, 4.64351e-13)
 bones/9/enabled = true
 bones/9/position = Vector3(-1.77636e-19, 1.9858e-05, 2.32832e-14)
-bones/9/rotation = Quaternion(-0.14312, 0.0862516, -0.0125214, 0.98586)
+bones/9/rotation = Quaternion(-0.219994, 0.00599458, -0.000657134, 0.975483)
 bones/9/scale = Vector3(1, 1, 1)
 bones/10/name = "ear_L"
 bones/10/parent = 9
 bones/10/rest = Transform3D(0.720726, 0.630782, 0.28752, -0.500729, 0.760537, -0.413345, -0.4794, 0.153939, 0.863989, 1.36629e-05, 3.50296e-05, 2.59459e-06)
 bones/10/enabled = true
 bones/10/position = Vector3(1.36629e-05, 3.50296e-05, 2.5946e-06)
-bones/10/rotation = Quaternion(0.18049, 0.200959, -0.315044, 0.909828)
+bones/10/rotation = Quaternion(0.0610357, 0.2401, -0.286338, 0.925547)
 bones/10/scale = Vector3(1, 1, 1)
 bones/11/name = "ear_L_end"
 bones/11/parent = 10
@@ -1064,7 +1654,7 @@ bones/12/parent = 9
 bones/12/rest = Transform3D(0.720726, -0.630783, -0.28752, 0.500729, 0.760536, -0.413345, 0.4794, 0.153939, 0.863989, -1.36629e-05, 3.50296e-05, 2.5946e-06)
 bones/12/enabled = true
 bones/12/position = Vector3(-1.36629e-05, 3.50296e-05, 2.5946e-06)
-bones/12/rotation = Quaternion(0.180454, -0.200971, 0.315036, 0.909835)
+bones/12/rotation = Quaternion(0.0610357, -0.2401, 0.286338, 0.925547)
 bones/12/scale = Vector3(1, 1, 1)
 bones/13/name = "ear_R_end"
 bones/13/parent = 12
@@ -1092,7 +1682,7 @@ bones/16/parent = 9
 bones/16/rest = Transform3D(0.976464, 0.213513, 0.0305063, -0.0166538, -0.0663797, 0.997655, 0.215038, -0.974682, -0.0612615, 1.48874e-05, 2.71795e-05, -7.98111e-06)
 bones/16/enabled = true
 bones/16/position = Vector3(1.48874e-05, 2.71796e-05, -7.98111e-06)
-bones/16/rotation = Quaternion(-0.653574, -0.0759887, -0.07742, 0.749048)
+bones/16/rotation = Quaternion(-0.619348, -0.0793821, -0.0739366, 0.777586)
 bones/16/scale = Vector3(1, 1, 1)
 bones/17/name = "quill_L.1_end"
 bones/17/parent = 16
@@ -1106,7 +1696,7 @@ bones/18/parent = 9
 bones/18/rest = Transform3D(0.97437, 0.197775, 0.107184, -0.0429228, -0.304265, 0.95162, 0.220819, -0.931831, -0.287977, 1.46611e-05, 1.23883e-05, -7.62826e-06)
 bones/18/enabled = true
 bones/18/position = Vector3(1.46611e-05, 1.23883e-05, -7.62825e-06)
-bones/18/rotation = Quaternion(-0.738164, -0.058334, -0.0970166, 0.665056)
+bones/18/rotation = Quaternion(-0.707616, -0.0626234, -0.0943047, 0.69747)
 bones/18/scale = Vector3(1, 1, 1)
 bones/19/name = "quill_L.2_end"
 bones/19/parent = 18
@@ -1120,7 +1710,7 @@ bones/20/parent = 9
 bones/20/rest = Transform3D(1, -8.02584e-14, 2.14488e-14, 8.88155e-16, 0.2685, 0.96328, -8.30703e-14, -0.96328, 0.2685, -3.85307e-17, 3.80289e-05, -6.69276e-06)
 bones/20/enabled = true
 bones/20/position = Vector3(-5.82287e-19, 3.80289e-05, -6.69276e-06)
-bones/20/rotation = Quaternion(-0.522009, -1.15846e-13, 2.38461e-13, 0.85294)
+bones/20/rotation = Quaternion(-0.483258, -5.68842e-09, -5.06409e-09, 0.875478)
 bones/20/scale = Vector3(1, 1, 1)
 bones/21/name = "quill_M.1_end"
 bones/21/parent = 20
@@ -1134,7 +1724,7 @@ bones/22/parent = 9
 bones/22/rest = Transform3D(1, -7.98112e-14, -2.17985e-14, 1.33223e-15, -0.247908, 0.968783, -8.27238e-14, -0.968783, -0.247908, -2.5179e-17, 2.16861e-05, -9.63999e-06)
 bones/22/enabled = true
 bones/22/position = Vector3(-8.04552e-19, 2.16861e-05, -9.63999e-06)
-bones/22/rotation = Quaternion(-0.724551, -6.05675e-14, 2.75131e-13, 0.689221)
+bones/22/rotation = Quaternion(-0.692934, -5.36597e-09, -1.30177e-08, 0.721001)
 bones/22/scale = Vector3(1, 1, 1)
 bones/23/name = "quill_M.2_end"
 bones/23/parent = 22
@@ -1148,7 +1738,7 @@ bones/24/parent = 9
 bones/24/rest = Transform3D(0.976464, -0.213513, -0.0305063, 0.0166538, -0.0663797, 0.997655, -0.215038, -0.974682, -0.0612615, -1.48874e-05, 2.71795e-05, -7.98111e-06)
 bones/24/enabled = true
 bones/24/position = Vector3(-1.48874e-05, 2.71796e-05, -7.98111e-06)
-bones/24/rotation = Quaternion(-0.653574, 0.0759887, 0.07742, 0.749048)
+bones/24/rotation = Quaternion(-0.619348, 0.0793821, 0.0739366, 0.777586)
 bones/24/scale = Vector3(1, 1, 1)
 bones/25/name = "quill_R.1_end"
 bones/25/parent = 24
@@ -1162,7 +1752,7 @@ bones/26/parent = 9
 bones/26/rest = Transform3D(0.97437, -0.197775, -0.107184, 0.0429228, -0.304265, 0.95162, -0.220819, -0.93183, -0.287977, -1.46611e-05, 1.23883e-05, -7.62825e-06)
 bones/26/enabled = true
 bones/26/position = Vector3(-1.46611e-05, 1.23883e-05, -7.62825e-06)
-bones/26/rotation = Quaternion(-0.738164, 0.058334, 0.0970166, 0.665056)
+bones/26/rotation = Quaternion(-0.707616, 0.0626234, 0.0943047, 0.69747)
 bones/26/scale = Vector3(1, 1, 1)
 bones/27/name = "quill_R.2_end"
 bones/27/parent = 26
@@ -1176,7 +1766,7 @@ bones/28/parent = 9
 bones/28/rest = Transform3D(1, -1.50995e-07, 3.16301e-06, -3.16301e-06, 1.78814e-07, 1, -1.50996e-07, -1, 1.78814e-07, 6.70834e-13, 2.00967e-05, -5.15649e-05)
 bones/28/enabled = true
 bones/28/position = Vector3(6.70843e-13, 2.00967e-05, -5.15649e-05)
-bones/28/rotation = Quaternion(-0.632768, 1.05919e-06, -1.17685e-06, 0.774342)
+bones/28/rotation = Quaternion(-0.597429, 1.00198e-06, -1.22335e-06, 0.801922)
 bones/28/scale = Vector3(1, 1, 1)
 bones/29/name = "quills_end"
 bones/29/parent = 28
@@ -1190,7 +1780,7 @@ bones/30/parent = 8
 bones/30/rest = Transform3D(0.974172, 0.210392, 0.081995, -0.045465, -0.172929, 0.983884, 0.221181, -0.962201, -0.158897, 6.71837e-06, 1.35045e-05, -7.71266e-06)
 bones/30/enabled = true
 bones/30/position = Vector3(6.71837e-06, 1.35045e-05, -7.71266e-06)
-bones/30/rotation = Quaternion(-0.691315, -0.0640245, -0.0938864, 0.713561)
+bones/30/rotation = Quaternion(-0.658641, -0.0681678, -0.0909228, 0.743827)
 bones/30/scale = Vector3(1, 1, 1)
 bones/31/name = "quill_L.3_end"
 bones/31/parent = 30
@@ -1204,7 +1794,7 @@ bones/32/parent = 8
 bones/32/rest = Transform3D(1, 2.5018e-07, -5.31864e-09, -1.12603e-08, 0.0662215, 0.997805, 2.49983e-07, -0.997805, 0.0662215, 1.70447e-12, 8.12688e-07, -7.67625e-06)
 bones/32/enabled = true
 bones/32/position = Vector3(1.70447e-12, 8.12697e-07, -7.67625e-06)
-bones/32/rotation = Quaternion(-0.606767, -9.5937e-08, -8.03158e-08, 0.794879)
+bones/32/rotation = Quaternion(-0.570534, -8.93652e-08, -7.8884e-08, 0.821274)
 bones/32/scale = Vector3(1, 1, 1)
 bones/33/name = "quill_M.3_end"
 bones/33/parent = 32
@@ -1218,7 +1808,7 @@ bones/34/parent = 8
 bones/34/rest = Transform3D(0.974173, -0.210392, -0.0819948, 0.045465, -0.172928, 0.983884, -0.22118, -0.962201, -0.158897, -6.71837e-06, 1.35045e-05, -7.71267e-06)
 bones/34/enabled = true
 bones/34/position = Vector3(-6.71837e-06, 1.35045e-05, -7.71267e-06)
-bones/34/rotation = Quaternion(-0.691316, 0.0640243, 0.0938862, 0.713561)
+bones/34/rotation = Quaternion(-0.658641, 0.0681676, 0.0909225, 0.743827)
 bones/34/scale = Vector3(1, 1, 1)
 bones/35/name = "quill_R.3_end"
 bones/35/parent = 34
@@ -1232,21 +1822,21 @@ bones/36/parent = 8
 bones/36/rest = Transform3D(0.0203248, 0.995896, 0.0881976, -0.996179, 0.0276672, -0.0828429, -0.0849431, -0.0861768, 0.992652, 7.10023e-06, 1.61851e-05, 2.05792e-07)
 bones/36/enabled = true
 bones/36/position = Vector3(7.10023e-06, 1.61851e-05, 2.05793e-07)
-bones/36/rotation = Quaternion(0.0663786, -0.240973, -0.694827, 0.674345)
+bones/36/rotation = Quaternion(-0.328458, 0.237349, -0.694972, 0.593965)
 bones/36/scale = Vector3(1, 1, 1)
 bones/37/name = "forearm.L"
 bones/37/parent = 36
 bones/37/rest = Transform3D(0.979441, 0.0290604, -0.199627, -0.0508229, 0.993197, -0.104772, 0.195224, 0.112764, 0.974255, 1.38882e-12, 1.03589e-05, 8.38399e-13)
 bones/37/enabled = true
 bones/37/position = Vector3(5.19212e-12, 1.03589e-05, 7.45058e-13)
-bones/37/rotation = Quaternion(0.489723, -0.22294, -0.0614832, 0.840648)
+bones/37/rotation = Quaternion(0.740506, -0.211267, -0.19329, 0.607994)
 bones/37/scale = Vector3(1, 1, 1)
 bones/38/name = "hand.L"
 bones/38/parent = 37
 bones/38/rest = Transform3D(-0.0397772, 0.00167392, 0.999207, -0.00104189, 0.999998, -0.00171672, -0.999208, -0.00110935, -0.0397754, 1.70235e-11, 1.84671e-05, 2.20657e-15)
 bones/38/enabled = true
 bones/38/position = Vector3(1.10012e-11, 1.84671e-05, 1.86265e-13)
-bones/38/rotation = Quaternion(0.244277, 0.43745, 0.115871, 0.857636)
+bones/38/rotation = Quaternion(0.261321, 0.504258, 0.115224, 0.814959)
 bones/38/scale = Vector3(1, 1, 1)
 bones/39/name = "f_index.01.L"
 bones/39/parent = 38
@@ -1358,21 +1948,21 @@ bones/54/parent = 8
 bones/54/rest = Transform3D(0.0203249, -0.995896, -0.0881981, 0.996179, 0.0276673, -0.0828429, 0.0849432, -0.0861773, 0.992652, -7.10023e-06, 1.61851e-05, 2.0579e-07)
 bones/54/enabled = true
 bones/54/position = Vector3(-7.10023e-06, 1.61851e-05, 2.0579e-07)
-bones/54/rotation = Quaternion(-0.400103, -0.483513, 0.5177, 0.58148)
+bones/54/rotation = Quaternion(-0.312563, -0.468836, 0.585613, 0.582713)
 bones/54/scale = Vector3(1, 1, 1)
 bones/55/name = "forearm.R"
 bones/55/parent = 54
 bones/55/rest = Transform3D(0.979441, -0.0290604, 0.199627, 0.0508229, 0.993197, -0.104772, -0.195224, 0.112764, 0.974254, 2.66791e-11, 1.03589e-05, -9.4838e-13)
 bones/55/enabled = true
 bones/55/position = Vector3(6.50762e-12, 1.03589e-05, 1.49012e-12)
-bones/55/rotation = Quaternion(0.271478, 0.183209, 0.234632, 0.91525)
+bones/55/rotation = Quaternion(0.352494, -0.0138118, 0.283115, 0.891854)
 bones/55/scale = Vector3(1, 1, 1)
 bones/56/name = "hand.R"
 bones/56/parent = 55
 bones/56/rest = Transform3D(-0.0397773, -0.00167489, -0.999207, 0.00104196, 0.999997, -0.00171769, 0.999208, -0.00110946, -0.0397755, -2.03683e-11, 1.84671e-05, -2.91886e-12)
 bones/56/enabled = true
 bones/56/position = Vector3(-4.95929e-12, 1.84671e-05, -4.65661e-13)
-bones/56/rotation = Quaternion(0.249863, -0.849337, 0.177814, 0.429625)
+bones/56/rotation = Quaternion(0.392637, -0.643406, 0.0808657, 0.65217)
 bones/56/scale = Vector3(1, 1, 1)
 bones/57/name = "f_index.01.R"
 bones/57/parent = 56
@@ -1484,28 +2074,28 @@ bones/72/parent = 7
 bones/72/rest = Transform3D(-1, -8.24091e-06, -5.97945e-07, -2.30069e-07, -0.0445681, 0.999006, -8.25937e-06, 0.999006, 0.0445681, -3.75145e-06, 1.13219e-08, -3.21914e-07)
 bones/72/enabled = true
 bones/72/position = Vector3(-3.75145e-06, 1.13214e-08, -3.21902e-07)
-bones/72/rotation = Quaternion(-0.0936741, 0.983498, -0.12705, 0.0884039)
+bones/72/rotation = Quaternion(0.0173671, 0.761778, 0.640832, 0.0934238)
 bones/72/scale = Vector3(1, 1, 1)
 bones/73/name = "shin.L"
 bones/73/parent = 72
 bones/73/rest = Transform3D(1, -1.60204e-08, 8.89924e-09, 1.68647e-08, 0.994496, -0.104774, -7.17173e-09, 0.104774, 0.994496, -3.48617e-13, 1.08944e-05, 4.54484e-13)
 bones/73/enabled = true
 bones/73/position = Vector3(-7.39438e-14, 1.08944e-05, -2.39286e-14)
-bones/73/rotation = Quaternion(0.00380182, -4.65665e-09, -2.77556e-16, 0.999993)
+bones/73/rotation = Quaternion(0.164393, -4.59617e-09, 7.48053e-10, 0.986395)
 bones/73/scale = Vector3(1, 1, 1)
 bones/74/name = "foot.L"
 bones/74/parent = 73
 bones/74/rest = Transform3D(1, 2.03043e-07, 8.69651e-06, -7.51249e-06, 0.524171, 0.851613, -4.38554e-06, -0.851613, 0.524171, 3.12203e-13, 1.95119e-05, 2.97488e-12)
 bones/74/enabled = true
 bones/74/position = Vector3(1.61527e-13, 1.95119e-05, 4.97622e-14)
-bones/74/rotation = Quaternion(-0.257374, 0.075882, 0.104073, 0.95769)
+bones/74/rotation = Quaternion(-0.609667, 0.0659862, 0.0714356, 0.78667)
 bones/74/scale = Vector3(1, 1, 1)
 bones/75/name = "toe.L"
 bones/75/parent = 74
 bones/75/rest = Transform3D(-1, 4.19536e-06, 1.5302e-05, -3.58685e-06, 0.87967, -0.475585, -1.54559e-05, -0.475585, -0.87967, 5.31299e-13, 1.47706e-05, 1.82274e-12)
 bones/75/enabled = true
 bones/75/position = Vector3(-3.14758e-13, 1.47706e-05, -6.60833e-14)
-bones/75/rotation = Quaternion(2.1621e-07, 0.969451, -0.245286, 7.91183e-06)
+bones/75/rotation = Quaternion(1.08611e-06, 0.936546, -0.350545, 7.83991e-06)
 bones/75/scale = Vector3(1, 1, 1)
 bones/76/name = "toe.L_end"
 bones/76/parent = 75
@@ -1519,28 +2109,28 @@ bones/77/parent = 7
 bones/77/rest = Transform3D(-1, -8.2409e-06, -1.21108e-07, 2.46293e-07, -0.0445681, 0.999006, -8.23811e-06, 0.999006, 0.0445681, 3.75145e-06, 1.13221e-08, -3.21852e-07)
 bones/77/enabled = true
 bones/77/position = Vector3(3.75145e-06, 1.13214e-08, -3.2184e-07)
-bones/77/rotation = Quaternion(-0.0483179, -0.055374, 0.992335, -0.0993485)
+bones/77/rotation = Quaternion(0.0829691, -0.168236, 0.980198, -0.0634369)
 bones/77/scale = Vector3(1, 1, 1)
 bones/78/name = "shin.R"
 bones/78/parent = 77
 bones/78/rest = Transform3D(1, 3.39397e-08, 6.2749e-09, -3.30955e-08, 0.994496, -0.104774, -9.79637e-09, 0.104774, 0.994496, 6.97294e-13, 1.08944e-05, 2.2711e-13)
 bones/78/enabled = true
 bones/78/position = Vector3(5.28944e-14, 1.08944e-05, 2.10193e-13)
-bones/78/rotation = Quaternion(0.305261, 4.89002e-09, -8.97319e-08, 0.952269)
+bones/78/rotation = Quaternion(0.948112, -6.94105e-08, -5.7078e-08, 0.317936)
 bones/78/scale = Vector3(1, 1, 1)
 bones/79/name = "foot.R"
 bones/79/parent = 78
 bones/79/rest = Transform3D(1, -2.03043e-07, -8.69651e-06, 7.51249e-06, 0.524171, 0.851613, 4.38554e-06, -0.851613, 0.524171, -6.03233e-13, 1.95119e-05, 2.9749e-12)
 bones/79/enabled = true
 bones/79/position = Vector3(-3.7772e-13, 1.95119e-05, 5.00255e-14)
-bones/79/rotation = Quaternion(-0.490072, -0.0531283, -0.0968565, 0.864653)
+bones/79/rotation = Quaternion(-0.667002, -0.0635622, -0.0799189, 0.738025)
 bones/79/scale = Vector3(1, 1, 1)
 bones/80/name = "toe.R"
 bones/80/parent = 79
 bones/80/rest = Transform3D(-1, -4.19536e-06, -1.5302e-05, 3.58685e-06, 0.87967, -0.475585, 1.54559e-05, -0.475585, -0.87967, -2.40197e-13, 1.47706e-05, 1.26909e-12)
 bones/80/enabled = true
 bones/80/position = Vector3(-5.92365e-14, 1.47706e-05, -4.34264e-13)
-bones/80/rotation = Quaternion(-2.1621e-07, 0.969451, -0.245286, -7.91183e-06)
+bones/80/rotation = Quaternion(2.52157e-07, 0.995246, -0.0973901, -7.78474e-06)
 bones/80/scale = Vector3(1, 1, 1)
 bones/81/name = "toe.R_end"
 bones/81/parent = 80
@@ -1554,14 +2144,14 @@ bones/82/parent = 6
 bones/82/rest = Transform3D(-1, -5.45256e-20, 3.25044e-06, -5.38946e-20, 1, 1.94145e-16, -3.25044e-06, 1.94145e-16, -1, 3.75142e-06, -8.75595e-08, 9.62582e-06)
 bones/82/enabled = true
 bones/82/position = Vector3(3.75143e-06, -8.75592e-08, 6.12583e-06)
-bones/82/rotation = Quaternion(-9.72738e-07, 0.793353, 0.608761, 1.2677e-06)
+bones/82/rotation = Quaternion(-6.84067e-08, 0.999083, 0.0428105, 1.59643e-06)
 bones/82/scale = Vector3(1, 1, 1)
 bones/83/name = "legT.L"
 bones/83/parent = 82
 bones/83/rest = Transform3D(-1, -1.69407e-21, 2.27374e-13, 1.69407e-21, -1, 1.08418e-18, 2.27374e-13, 1.08418e-18, 1, -5.82085e-13, -6.91948e-07, -3.03599e-05)
 bones/83/enabled = true
 bones/83/position = Vector3(-5e-06, -1.51808e-05, -2.64776e-05)
-bones/83/rotation = Quaternion(2.33066e-14, -0.608761, 0.793353, 1.7961e-14)
+bones/83/rotation = Quaternion(2.93947e-14, -0.0428105, 0.999083, 1.32084e-15)
 bones/83/scale = Vector3(1, 1, 1)
 bones/84/name = "legT.L_end"
 bones/84/parent = 83
@@ -1575,7 +2165,7 @@ bones/85/parent = 82
 bones/85/rest = Transform3D(1, 1.69407e-21, 2.27596e-13, -1.69407e-21, 1, 1.08523e-18, -2.27596e-13, -1.08523e-18, 1, -2.91043e-13, 2.54855e-05, -1.08835e-05)
 bones/85/enabled = true
 bones/85/position = Vector3(-5e-06, 2.54855e-05, -1.08835e-05)
-bones/85/rotation = Quaternion(0.608761, 9.01938e-14, 6.92082e-14, 0.793353)
+bones/85/rotation = Quaternion(0.0428105, 3.40985e-14, 1.08453e-13, 0.999083)
 bones/85/scale = Vector3(1, 1, 1)
 bones/86/name = "poleT.L_end"
 bones/86/parent = 85
@@ -1589,14 +2179,14 @@ bones/87/parent = 6
 bones/87/rest = Transform3D(-1, -5.45256e-20, 3.25044e-06, -5.38946e-20, 1, 1.94145e-16, -3.25044e-06, 1.94145e-16, -1, -3.75148e-06, -8.75595e-08, 9.62579e-06)
 bones/87/enabled = true
 bones/87/position = Vector3(-3.75147e-06, -8.75592e-08, 6.1258e-06)
-bones/87/rotation = Quaternion(1.12988e-06, 0.707107, -0.707107, 1.12988e-06)
+bones/87/rotation = Quaternion(2.8159e-08, 0.999845, -0.0176226, 1.59765e-06)
 bones/87/scale = Vector3(1, 1, 1)
 bones/88/name = "legT.R"
 bones/88/parent = 87
 bones/88/rest = Transform3D(-1, -1.69407e-21, 2.27374e-13, 1.69407e-21, -1, 1.08418e-18, 2.27374e-13, 1.08418e-18, 1, -5.82085e-13, -6.91948e-07, -3.03599e-05)
 bones/88/enabled = true
 bones/88/position = Vector3(4.45857e-06, -9.1549e-06, -2.74326e-05)
-bones/88/rotation = Quaternion(-4.33003e-17, 0.707107, 0.707107, 4.32936e-17)
+bones/88/rotation = Quaternion(-6.12235e-17, 0.0176226, 0.999845, 1.07912e-18)
 bones/88/scale = Vector3(1, 1, 1)
 bones/89/name = "legT.R_end"
 bones/89/parent = 88
@@ -1610,7 +2200,7 @@ bones/90/parent = 87
 bones/90/rest = Transform3D(1, 1.69407e-21, 2.27596e-13, -1.69407e-21, 1, 1.08523e-18, -2.27596e-13, -1.08523e-18, 1, -5.82081e-13, 2.54855e-05, -1.08835e-05)
 bones/90/enabled = true
 bones/90/position = Vector3(5e-06, 2.54855e-05, -1.08835e-05)
-bones/90/rotation = Quaternion(-0.707107, 8.03887e-14, -8.03887e-14, 0.707107)
+bones/90/rotation = Quaternion(-0.0176226, 2.00344e-15, -1.13669e-13, 0.999845)
 bones/90/scale = Vector3(1, 1, 1)
 bones/91/name = "poleT.R_end"
 bones/91/parent = 90
@@ -1666,7 +2256,7 @@ transform = Transform3D(1, 0, 1.77636e-15, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 visible = false
 material_override = SubResource("StandardMaterial3D_dtqjt")
 transparency = 0.1
-mesh = SubResource("ArrayMesh_hp6x6")
+mesh = ExtResource("2_mp747")
 skin = SubResource("Skin_3tkgg")
 surface_material_override/0 = SubResource("StandardMaterial3D_dtqjt")
 
@@ -1695,7 +2285,6 @@ libraries = {
 &"SonicMain": ExtResource("4_cxr5p")
 }
 playback_default_blend_time = 0.5
-blend_times = [&"SonicMain/AnimJog", &"SonicMain/AnimJog", 0.026]
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(-0.984872, 4.7433e-08, -1.40944e-07, 4.98462e-14, 0.933431, 0.314135, 1.48711e-07, 0.314135, -0.933431, -0.002, 2.392, -6.845)

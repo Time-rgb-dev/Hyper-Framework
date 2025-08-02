@@ -1,0 +1,6 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3 uid="uid://cogpeqr5h4bju"]
+
+[ext_resource type="Texture2D" uid="uid://b1kma5hr8jelc" path="res://Assets/objects/Springs/cmn_obj_c_spring01_dif_HD.png" id="1_i10bf"]
+
+[resource]
+albedo_texture = ExtResource("1_i10bf")

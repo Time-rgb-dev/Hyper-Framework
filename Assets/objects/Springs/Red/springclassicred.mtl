@@ -1,0 +1,12 @@
+# Blender MTL File: 'Work (2).blend'
+# Material Count: 1
+
+newmtl cmn_obj_c_spring01_dif_HD
+Ns 1000.000000
+Ka 0.000000 0.000000 0.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 1
+map_Kd cmn_obj_c_spring01_dif_HD.png
