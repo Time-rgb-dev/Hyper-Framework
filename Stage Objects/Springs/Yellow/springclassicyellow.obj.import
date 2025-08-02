@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://b6t60jaf04w3f"
+path="res://.godot/imported/springclassicyellow.obj-52f0f8bbdbea23015372635e41a715ca.mesh"
+
+[deps]
+
+files=["res://.godot/imported/springclassicyellow.obj-52f0f8bbdbea23015372635e41a715ca.mesh"]
+
+source_file="res://Stage Objects/Springs/Yellow/springclassicyellow.obj"
+dest_files=["res://.godot/imported/springclassicyellow.obj-52f0f8bbdbea23015372635e41a715ca.mesh", "res://.godot/imported/springclassicyellow.obj-52f0f8bbdbea23015372635e41a715ca.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

@@ -12,9 +12,9 @@ extends CharacterBody3D
 @onready var debug_label: Label = $"CanvasLayer/Label"
 
 # Constants
-@export var ACC: float = 0.20895 # 85% Classic Accurate
+@export var ACC: float = 0.30895 # 85% Classic Accurate
 @export var DEC: float = 0.25
-@export var FRC: float = 0.15 # 80% Classic Accurate
+@export var FRC: float = 0.25 # 80% Classic Accurate
 
 @export var SPIN_FRC: float = 0.05
 
@@ -36,7 +36,6 @@ extends CharacterBody3D
 @export var AIR_ACC: float = 22.20895
 @export var AIR_CONTROL: float = 5.0
 
-@export var TURN_RESISTANCE_FACTOR: float = 5.0
 @export var WALL_THRESHOLD:float = - 0.9
 
 @export var SPINDASH_CHARGE_RATE: float = 50.0
@@ -58,6 +57,8 @@ extends CharacterBody3D
 
 @export var SPACE_SCALE: float = 0.01
 @export var CAM_SENSITIVITY:Vector2 = Vector2(0.1, 0.1)
+
+@export var RINGS = 0
 
 # State
 var gsp: float = 0.0:
@@ -161,19 +162,20 @@ func process_animations() -> void:
 			anim_player.play("SonicMain/AnimSkid1")
 			anim_player.speed_scale = 1.0  # Default run speed
 		elif not GROUNDED:
-			if SPINNING:
+			if SPINNING or (JUMPING and abs_gsp < 1.0):
+				SPINNING = true  # Ensure spinning visual even if jumping from idle
 				anim_player.play("SonicMain/AnimSpin")
-				anim_player.speed_scale = 1.0  # Default run speed
+				anim_player.speed_scale = 1.0
 			else:
 				if velocity.y > 3.0:
 					anim_player.play("SonicMain/AnimAirUp")
-					anim_player.speed_scale = 1.0  # Default run speed
+					anim_player.speed_scale = 1.0
 				elif velocity.y < -4.0:
 					anim_player.play("SonicMain/AnimAirDown")
-					anim_player.speed_scale = 1.0  # Default run speed
+					anim_player.speed_scale = 1.0
 				else:
 					anim_player.play("SonicMain/AnimAirMid")
-					anim_player.speed_scale = 1.0  # Default run speed
+					anim_player.speed_scale = 1.0
 		elif CROUCHING:
 			if not SPINDASHING:
 				anim_player.play("SonicMain/AnimCrouch")
@@ -242,6 +244,40 @@ func process_rotations(delta: float) -> void:
 			
 			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
 
+func apply_steering(input_dir: Vector3, delta: float) -> void:
+	if input_dir == Vector3.ZERO:
+		return
+	
+	var current_velocity = Vector3(velocity.x, 0, velocity.z)
+	var current_speed = current_velocity.length()
+	
+	if current_speed < 3.5:
+		# If too slow, directly apply input
+		move_dir = input_dir.normalized()
+		return
+	
+	var current_dir = current_velocity.normalized()
+	var input_norm = input_dir.normalized()
+	
+	var angle_diff = rad_to_deg(acos(clampf(current_dir.dot(input_norm), -1.0, 1.0)))
+
+	var speed_ratio = current_speed / MAXSPD
+# Use a non-linear curve for steer strength: stronger at low speeds, weaker at high speeds
+	var steer_strength = clampf(pow(1.0 - speed_ratio, 0.5), 0.1, 1.0) * 7.0
+	
+	# Apply resistance to sharp turns (bigger angle = more speed lost)
+	if angle_diff > 15.0:
+		var loss_factor = clampf(angle_diff / 180.0, 0.0, 1.0)
+		var speed_loss = current_speed * loss_factor * 0.08
+		gsp = maxf(gsp - speed_loss, 0.0)
+
+	# Gradually steer move_dir
+	move_dir = current_dir.slerp(input_norm, steer_strength * delta).normalized()
+
+	# Reapply velocity with new direction
+	velocity.x = move_dir.x * gsp
+	velocity.z = move_dir.z * gsp
+	
 func _ready() -> void:
 	camera_default_transform = camera.transform
 
@@ -377,7 +413,7 @@ func _physics_process(delta: float) -> void:
 		# Detect skidding
 		if not SPINNING and not CROUCHING and has_input:
 			if move_dir != Vector3.ZERO:
-				if vel_move_dot <= -0.16 and abs_gsp > 15:
+				if vel_move_dot <= -0.16 and abs_gsp > 25.0:
 					SKIDDING = true
 				elif vel_move_dot > 0.25:
 					SKIDDING = false
@@ -393,9 +429,9 @@ func _physics_process(delta: float) -> void:
 		elif can_move: 
 			if has_input:
 				# Rotate toward new input direction
-				var turn_speed: float = clampf(1.0 - (abs_gsp / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0)
-				
-				move_dir = move_dir.slerp(cam_input_dir, turn_speed).normalized()
+				# update_move_direction(cam_input_dir, delta, not GROUNDED)
+				if has_input:
+					apply_steering(cam_input_dir, delta)
 				#recompute this
 				cam_move_dot = move_dir.dot(cam_input_dir)
 				
@@ -516,13 +552,7 @@ func _physics_process(delta: float) -> void:
 		#var current_h_dir: Vector3 = current_h_velocity.normalized() if current_speed > 0.01 else Vector3.ZERO
 		
 		if has_input:
-			# Smoothly rotate move_dir toward cam_input_dir in the air
-			var turn_speed: float = clampf(1.0 - (abs_gsp / MAXSPD) * TURN_RESISTANCE_FACTOR, 0.05, 1.0) * 0.5
-			move_dir = move_dir.slerp(cam_input_dir, turn_speed).normalized()
-			
-			#recompute this
-			cam_move_dot = move_dir.dot(cam_input_dir)
-			
+			apply_steering(cam_input_dir, delta)
 			if abs_gsp < TOPACC:
 				# Adjust acceleration based on input alignment
 				if cam_move_dot > 0:
@@ -573,5 +603,4 @@ func _physics_process(delta: float) -> void:
 		last_player_input_dir = player_input_dir
 	
 	process_rotations(delta)
-	
 	process_animations()

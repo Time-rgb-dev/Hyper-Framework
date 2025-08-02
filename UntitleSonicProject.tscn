@@ -1,10 +1,10 @@
 [gd_scene load_steps=10 format=3 uid="uid://c1m30chim3x0k"]
 
-[ext_resource type="PackedScene" uid="uid://f4cgq5ixf1rn" path="res://objects/Player/Player.tscn" id="1_rqpk7"]
-[ext_resource type="PackedScene" uid="uid://cbjhtwtkrilqv" path="res://objects/YellowSpring.tscn" id="3_5vrlp"]
-[ext_resource type="PackedScene" uid="uid://dmbior770cd38" path="res://objects/Platform/Platform.tscn" id="4_jnrql"]
+[ext_resource type="PackedScene" uid="uid://f4cgq5ixf1rn" path="res://assets/objects/Player/Player.tscn" id="1_rqpk7"]
+[ext_resource type="PackedScene" uid="uid://cbjhtwtkrilqv" path="res://assets/objects/YellowSpring.tscn" id="3_5vrlp"]
+[ext_resource type="PackedScene" uid="uid://dmbior770cd38" path="res://assets/objects/Platform/Platform.tscn" id="4_jnrql"]
 [ext_resource type="PackedScene" uid="uid://b7xs4s2u8lcqj" path="res://Terrain/Stage1Data.tscn" id="5_bqxtn"]
-[ext_resource type="PackedScene" uid="uid://c5ohyetgjc760" path="res://objects/Ring/ring.tscn" id="5_mtxmr"]
+[ext_resource type="PackedScene" uid="uid://c5ohyetgjc760" path="res://assets/objects/Ring/ring.tscn" id="5_mtxmr"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_5vrlp"]
 sky_top_color = Color(0.533862, 0.641755, 0.82804, 1)

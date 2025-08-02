@@ -1,10 +1,13 @@
 extends Control
 
-
 @onready var lives_label:Label = $Margins/Everything/Bottom/Lives/Count
 @onready var time_label:Label = $Margins/Everything/MainInfo/Time/Info
 @onready var score_label:Label = $Margins/Everything/MainInfo/Score/Info
 @onready var rings_label:Label = $Margins/Everything/MainInfo/Rings/Info
+
+@onready var player = get_node_or_null("/root/Player") # change path to your actual player path
+
+@export var target_name: String = "Player"
 
 var start_time:int
 
@@ -29,3 +32,9 @@ func _physics_process(delta: float) -> void:
 		
 		time_label.text = time_text
 		sec_accum = 0.0
+		
+		# Update rings display every frame (or you can optimize to update only on change)
+		if player:
+			rings_label.text = str(player.RINGS)
+		else:
+			rings_label.text = "0"
