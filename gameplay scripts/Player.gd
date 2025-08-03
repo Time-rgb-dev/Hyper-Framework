@@ -7,7 +7,7 @@ extends CharacterBody3D
 @onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
 ##The base for the player's rotation. This will be rotated to align to slopes.
 @onready var model_rotation_base: Node3D = $CollisionShape3D2
-@onready var camera:Camera3D = $Camera3D
+@onready var camera:Camera3D = $CameraRig
 @onready var ground_ray: RayCast3D = $GroundRay
 @onready var debug_label: Label = $"CanvasLayer/Label"
 @onready var spin_trail = $SonicFSpin/PathToParticles  # Replace with actual path to your GPUParticles3D nod
@@ -80,6 +80,7 @@ var last_player_input_dir: Vector3 = Vector3.ZERO
 
 var GROUNDED: bool = true
 var SPINNING: bool = false
+var ROLLING:  bool = false
 var CROUCHING: bool = false
 var JUMPING: bool  = false
 var DROPDASHING: bool = false
@@ -269,8 +270,9 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 	# Apply resistance to sharp turns (bigger angle = more speed lost)
 	if angle_diff > 15.0:
 		var loss_factor = clampf(angle_diff / 180.0, 0.0, 1.0)
-		var speed_loss = current_speed * loss_factor * 0.08
-		gsp = maxf(gsp - speed_loss, 0.0)
+		var speed_loss = current_speed * loss_factor * 0.08 
+		if not SPINNING:
+			gsp = maxf(gsp - speed_loss, 0.0)
 
 	# Gradually steer move_dir
 	move_dir = current_dir.slerp(input_norm, steer_strength * delta).normalized()
@@ -472,16 +474,22 @@ func _physics_process(delta: float) -> void:
 			if ROLLTYPE == 0:
 				if Input.is_action_just_pressed(BUTTON_ROLL) and abs_gsp > 5.0:
 					SPINNING = true
-				elif abs_gsp < 1.0:
+					ROLLING = true
+				elif abs_gsp < 0.1:
 					SPINNING = false
+					ROLLING = false
 			elif ROLLTYPE == 1:
-				if Input.is_action_pressed(BUTTON_ROLL) and abs_gsp > 5.0:
+				if Input.is_action_pressed(BUTTON_ROLL) and abs_gsp > 0.1:
 					SPINNING = true
+					ROLLING = true
 				elif not JUMPING:
 					SPINNING = false
+					ROLLING = false
 		
-		if SPINNING and not SPINDASHING and abs_gsp < 1.0 and not JUMPING:
+		if SPINNING and ROLLING and not SPINDASHING and abs_gsp < 1.0 and not JUMPING:
 			SPINNING = false
+			ROLLING = false
+			
 		
 		#STEP 9: Handle camera bounds (not gonna worry about that)
 		
