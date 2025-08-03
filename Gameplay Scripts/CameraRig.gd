@@ -2,7 +2,7 @@ extends Node3D
 
 @export var target_path: NodePath
 @export var min_zoom_distance: float = 4.0
-@export var max_zoom_distance: float = 25.0
+@export var max_zoom_distance: float = 10.0
 @export var zoom_speed_factor: float = 0.9
 @export var follow_distance: float = 7.0
 @export var vertical_offset: float = 4.0
@@ -37,13 +37,13 @@ func _physics_process(delta):
 	global_position = follow_target_pos
 	
 	# Rotate camera to be behind the move direction or velocity
-	var facing_dir = player.move_dir if player.move_dir.length() > 0.1 else player.velocity.normalized()
-	facing_dir = (Vector3.UP).normalized()
+	#var facing_dir = player.move_dir if player.move_dir.length() > 0.1 else player.velocity.normalized()
+	#facing_dir = (Vector3.UP).normalized()
 
-	if facing_dir.length() > 0.01:
-		var desired_yaw = atan2(facing_dir.x, facing_dir.z)
-		var current_yaw = rotation.y
-		rotation.y = lerp_angle(current_yaw, desired_yaw, delta * rotation_lerp_speed)
+	#if facing_dir.length() > 0.01:
+		#var desired_yaw = atan2(facing_dir.x, facing_dir.z)
+		#var current_yaw = rotation.y
+		#rotation.y = lerp_angle(current_yaw, desired_yaw, delta * rotation_lerp_speed)
 
 	# Zoom based on speed
 	var speed = player.abs_gsp

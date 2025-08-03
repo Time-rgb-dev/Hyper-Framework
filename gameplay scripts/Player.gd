@@ -110,8 +110,8 @@ static func rotate_toward_direction(object: Node3D, direction: Vector3, delta: f
 	object.rotation.y = lerp_angle(current_yaw, target_yaw, delta * rotation_speed)
 
 func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: float, pitch_mult: float) -> void:
-	var forward: Vector3 = -object.basis.z.normalized()
-
+	var forward = -model_default.transform.basis.z.normalized()
+	var slope_strength = forward.y
 	# Check if on flat ground
 	if slope_mag_dot >= 0.999:
 		# Smoothly reset tilt to 0
@@ -261,7 +261,9 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 	var current_dir = current_velocity.normalized()
 	var input_norm = input_dir.normalized()
 	
-	var angle_diff = rad_to_deg(acos(clampf(current_dir.dot(input_norm), -1.0, 1.0)))
+	var flat_current_dir = current_dir.project(Vector3(1, 0, 1)).normalized()
+	var flat_input_dir = input_norm.project(Vector3(1, 0, 1)).normalized()
+	var angle_diff = rad_to_deg(acos(clampf(flat_current_dir.dot(flat_input_dir), -1.0, 1.0)))
 
 	var speed_ratio = current_speed / MAXSPD
 # Use a non-linear curve for steer strength: stronger at low speeds, weaker at high speeds
@@ -305,7 +307,17 @@ func _physics_process(delta: float) -> void:
 		input.y
 	)
 	
-	var cam_input_dir: Vector3 = (camera.global_basis * input_3).normalized()
+	# Get the camera's forward and right vectors, projected flat on the XZ plane
+	var cam_forward: Vector3 = -camera.global_transform.basis.z
+	cam_forward.y = 0
+	cam_forward = cam_forward.normalized()
+
+	var cam_right: Vector3 = camera.global_transform.basis.x
+	cam_right.y = 0
+	cam_right = cam_right.normalized()
+
+	# Use them to build a flat direction
+	var cam_input_dir: Vector3 = (cam_forward * input.y + cam_right * input.x).normalized()
 	var player_input_dir: Vector3 = (model_default.global_basis * input_3).normalized()
 	
 	var has_input: bool = not cam_input_dir.is_zero_approx() if not input.is_zero_approx() else false
@@ -314,7 +326,9 @@ func _physics_process(delta: float) -> void:
 	add_debug_info("Camera-localized Input: " + readable_vector(cam_input_dir))
 	add_debug_info("Player-localized Input: " + readable_vector(player_input_dir))
 	
-	var cam_move_dot: float = move_dir.dot(cam_input_dir)
+	var cam_input_dir_flat: Vector3 = cam_input_dir.project(Vector3(1, 0, 1)).normalized()
+	var move_dir_flat: Vector3 = move_dir.project(Vector3(1, 0, 1)).normalized()
+	var cam_move_dot: float = move_dir_flat.dot(cam_input_dir_flat)
 	var vel_move_dot: float = cam_input_dir.dot(velocity.normalized())
 	
 	add_debug_info("Cam move dot: " + readable_float(cam_move_dot))

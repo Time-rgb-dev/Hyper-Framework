@@ -3,7 +3,7 @@
 [ext_resource type="Texture2D" uid="uid://bn7xp6ckci087" path="res://Assets/objects/Player/sonicmodel/Sonic v2 tex.png" id="2_e80uo"]
 [ext_resource type="ArrayMesh" uid="uid://b7ojfi2nvoq1y" path="res://Assets/objects/Player/spinball.tres" id="2_mp747"]
 [ext_resource type="AnimationLibrary" uid="uid://3s1ydgfoo3ep" path="res://Assets/objects/Player/sonicmodel/animations/SonicAnimations.tres" id="4_cxr5p"]
-[ext_resource type="Script" uid="uid://dfv0t1yihdwy6" path="res://Assets/objects/Player/CameraRig.gd" id="4_ga12v"]
+[ext_resource type="Script" uid="uid://dfv0t1yihdwy6" path="res://Gameplay Scripts/CameraRig.gd" id="4_ga12v"]
 
 [sub_resource type="GDScript" id="GDScript_hs1v8"]
 script/source = "extends CharacterBody3D
@@ -2314,7 +2314,6 @@ target_path = NodePath("..")
 transform = Transform3D(1, 0, 0, 0, 0.987688, 0.156434, 0, -0.156434, 0.987688, 0, 0, 0)
 
 [node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 doppler_tracking = 1
 current = true
 fov = 85.0
