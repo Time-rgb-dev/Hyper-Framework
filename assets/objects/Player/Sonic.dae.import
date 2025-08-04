@@ -4,12 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cgqhsvlug4kay"
-path="res://.godot/imported/Sonic.dae-002feedc46ac1037d6882dd99e3e0fa6.scn"
+path="res://.godot/imported/Sonic.dae-d7eebc0fc1a1e6d60030a1c4e8aaaaf3.scn"
 
 [deps]
 
-source_file="res://Assets/objects/Player/Sonic.dae"
-dest_files=["res://.godot/imported/Sonic.dae-002feedc46ac1037d6882dd99e3e0fa6.scn"]
+source_file="res://assets/objects/Player/Sonic.dae"
+dest_files=["res://.godot/imported/Sonic.dae-d7eebc0fc1a1e6d60030a1c4e8aaaaf3.scn"]
 
 [params]
 

@@ -7,10 +7,13 @@ extends CharacterBody3D
 @onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
 ##The base for the player's rotation. This will be rotated to align to slopes.
 @onready var model_rotation_base: Node3D = $CollisionShape3D2
-@onready var camera:Camera3D = $CameraRig
+@onready var camera:Camera3D = $CameraRig/CameraPivot/Camera3D
 @onready var ground_ray: RayCast3D = $GroundRay
 @onready var debug_label: Label = $"CanvasLayer/Label"
-@onready var spin_trail = $SonicFSpin/PathToParticles  # Replace with actual path to your GPUParticles3D nod
+
+
+
+@onready var spin_trail:GPUParticles3D = $SonicFSpin/PathToParticles  # Replace with actual path to your GPUParticles3D nod
 
 # Constants
 @export var ACC: float = 0.30895 # 85% Classic Accurate
@@ -75,7 +78,7 @@ var move_dir: Vector3 = Vector3.ZERO
 ##For example, z+ will always be going away from the camera and x+ will always be going right to the camera.
 var last_cam_input_dir: Vector3 = Vector3.ZERO
 ##This is the raw input of the player rotated to align to the POV of the player. 
-##For example, z+ will always be forward to the player and x+ will always be right to the player.
+##For example, z- will always be forward to the player and x+ will always be right to the player.
 var last_player_input_dir: Vector3 = Vector3.ZERO
 
 var GROUNDED: bool = true
@@ -503,10 +506,12 @@ func _physics_process(delta: float) -> void:
 			move_vector *= gsp
 			velocity.x = move_vector.x
 			velocity.z = move_vector.z
-			if SPINNING and GROUNDED and abs_gsp > 40:
-				spin_trail.emitting = true
-			else:
-				spin_trail.emitting = false
+			
+			if is_instance_valid(spin_trail):
+				if SPINNING and GROUNDED and abs_gsp > 40:
+					spin_trail.emitting = true
+				else:
+					spin_trail.emitting = false
 		if JUMPING:
 			velocity += slope_normal * JUMP_VELOCITY
 		
