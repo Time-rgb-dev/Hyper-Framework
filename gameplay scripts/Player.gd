@@ -7,11 +7,9 @@ extends CharacterBody3D
 @onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
 ##The base for the player's rotation. This will be rotated to align to slopes.
 @onready var model_rotation_base: Node3D = $CollisionShape3D2
-@onready var camera:Camera3D = $CameraRig/CameraPivot/Camera3D
+@onready var camera:Camera3D = $Camera3D
 @onready var ground_ray: RayCast3D = $GroundRay
 @onready var debug_label: Label = $"CanvasLayer/Label"
-
-
 
 @onready var spin_trail:GPUParticles3D = $SonicFSpin/PathToParticles  # Replace with actual path to your GPUParticles3D nod
 
@@ -283,22 +281,12 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 	# Reapply velocity with new direction
 	velocity.x = move_dir.x * gsp
 	velocity.z = move_dir.z * gsp
-	
+
 func _ready() -> void:
 	camera_default_transform = camera.transform
 
 func _physics_process(delta: float) -> void:
 	debug_label.text = ""
-	
-	# Calculate rotation that aligns body "down" with floor normal
-	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
-	
-	if not axis.is_zero_approx():
-		var quat_rotate: Quaternion = Quaternion(axis, acos(slope_mag_dot))
-		model_rotation_base.rotation = quat_rotate.get_euler()
-	else:
-		# Floor normal and up vector are the same (flat ground)
-		model_rotation_base.rotation = Vector3.ZERO
 	
 	# Input
 	var input: Vector2 = Input.get_vector(BUTTON_LEFT, BUTTON_RIGHT, BUTTON_UP, BUTTON_DOWN)
@@ -322,6 +310,20 @@ func _physics_process(delta: float) -> void:
 	
 	add_debug_info("Cam move dot: " + readable_float(cam_move_dot))
 	add_debug_info("Vel move dot: " + readable_float(vel_move_dot))
+	
+	
+	# Find the localized "x" axis by getting the cross product between the gravity and slope vectors.
+	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
+	
+	var slope_mag_angle:float = acos(slope_mag_dot)
+	
+	#rotate the model on its local x axis in order to align with the ground
+	if not axis.is_zero_approx():
+		var quat_rotate: Quaternion = Quaternion(axis, slope_mag_angle)
+		model_rotation_base.rotation = quat_rotate.get_euler()
+	else:
+		# Floor normal and up vector are the same (flat ground)
+		model_rotation_base.rotation = Vector3.ZERO
 	
 	if GROUNDED:
 		#STEP 1: Check for crouching, balancing, etc.
@@ -368,15 +370,14 @@ func _physics_process(delta: float) -> void:
 		#var slope_dir_dot: float = move_dir.dot(slope_normal) #works for loops if running towards camera, downhill is always towards camera
 		var slope_dir_dot: float = last_player_input_dir.dot(slope_normal)
 		
-		add_debug_info("Ground Angle " + readable_float(rad_to_deg(acos(slope_mag_dot))))
+		add_debug_info("Ground Angle " + readable_float(rad_to_deg(slope_mag_angle)))
 		
 		if not SPINDASHING:
 			# Get slope tilt from model forward tilt
-			var slope_angle:float = acos(slope_mag_dot)
 			
-			add_debug_info("Slope magnitude: " + readable_float(slope_mag_dot))
+			add_debug_info("Slope magnitude: " + readable_float(slope_mag_angle))
 			add_debug_info("Slope direction: " + readable_float(slope_dir_dot))
-			add_debug_info("Slope angle: " + readable_float(rad_to_deg(slope_angle)))
+			add_debug_info("Slope angle: " + readable_float(rad_to_deg(slope_mag_angle)))
 			
 			#slope factors do NOT apply on ceilings. 
 			#if slope_mag_dot < 1.0 and slope_mag_dot > -0.5:
@@ -393,10 +394,10 @@ func _physics_process(delta: float) -> void:
 				
 				if slope_dir_dot < 0 or Input.is_action_pressed(DEBUG_DOWNHILL): # Downhill
 					add_debug_info("RUNNING DOWNHILL")
-					gsp += slope_angle * downhill_factor * delta
+					gsp += slope_mag_angle * downhill_factor * delta
 				elif slope_dir_dot > 0 or Input.is_action_pressed(DEBUG_DOWNHILL): # Uphill
 					add_debug_info("RUNNING UP THAT HILL") #kudos if you pick up the ref :trol:
-					gsp -= slope_angle * uphill_factor * delta
+					gsp -= slope_mag_angle * uphill_factor * delta
 			
 			# Clamp slope speed
 			gsp = clampf(gsp, -MAXSPD, MAXSPD)
