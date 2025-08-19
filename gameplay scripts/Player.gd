@@ -233,6 +233,7 @@ func process_rotations(delta: float) -> void:
 				var manual_cam_transform: Transform3D = Transform3D.IDENTITY
 				#x transform
 				manual_cam_transform = manual_cam_transform.rotated_local(GRAVITY_NORMAL, camera_movement.x)
+				
 				#y transform
 				manual_cam_transform = manual_cam_transform.rotated_local(camera.global_basis.x.normalized(), camera_movement.y)
 				
@@ -316,6 +317,9 @@ func _physics_process(delta: float) -> void:
 	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
 	
 	var slope_mag_angle:float = acos(slope_mag_dot)
+	
+	var input_quat:Quaternion = Quaternion(slope_normal, input.angle())
+	var slope_quat:Quaternion = Quaternion(axis, slope_mag_angle)
 	
 	#rotate the model on its local x axis in order to align with the ground
 	if not axis.is_zero_approx():
