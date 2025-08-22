@@ -1,7 +1,7 @@
 [gd_scene load_steps=9 format=3 uid="uid://cgerklw4p0o5k"]
 
 [ext_resource type="PackedScene" uid="uid://ssdd0j3qqphb" path="res://Terrain/TestGround/1A1A1A1AONEAAAAAA.glb" id="1_d3v4i"]
-[ext_resource type="PackedScene" uid="uid://f4cgq5ixf1rn" path="res://Assets/objects/Player/Player.tscn" id="2_nnusn"]
+[ext_resource type="PackedScene" uid="uid://f4cgq5ixf1rn" path="res://assets/objects/Player/Player.tscn" id="2_nnusn"]
 [ext_resource type="Texture2D" uid="uid://crbvxa40x2yd1" path="res://Terrain/NewGhz/optimized_ghz_Image_2.png" id="3_nnusn"]
 
 [sub_resource type="Environment" id="Environment_d3v4i"]

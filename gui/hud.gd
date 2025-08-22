@@ -33,8 +33,5 @@ func _physics_process(delta: float) -> void:
 		time_label.text = time_text
 		sec_accum = 0.0
 		
-		# Update rings display every frame (or you can optimize to update only on change)
-		if player:
-			rings_label.text = str(player.RINGS)
-		else:
-			rings_label.text = "0"
+		# Update rings display every frame (or you can optimize to update only on change)  
+	rings_label.text = str(Global.Rings)
