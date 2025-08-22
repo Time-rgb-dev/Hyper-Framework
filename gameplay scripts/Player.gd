@@ -7,11 +7,10 @@ extends CharacterBody3D
 @onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
 ##The base for the player's rotation. This will be rotated to align to slopes.
 @onready var model_rotation_base: Node3D = $CollisionShape3D2
-@onready var camera:Camera3D = $Camera3D
+@onready var camera:Camera3D = $CameraRig
 @onready var ground_ray: RayCast3D = $GroundRay
 @onready var debug_label: Label = $"CanvasLayer/Label"
-
-@onready var spin_trail:GPUParticles3D = $SonicFSpin/PathToParticles  # Replace with actual path to your GPUParticles3D nod
+@onready var spin_trail = $SonicFSpin/PathToParticles  # Replace with actual path to your GPUParticles3D nod
 
 # Constants
 @export var ACC: float = 0.30895 # 85% Classic Accurate
@@ -76,7 +75,7 @@ var move_dir: Vector3 = Vector3.ZERO
 ##For example, z+ will always be going away from the camera and x+ will always be going right to the camera.
 var last_cam_input_dir: Vector3 = Vector3.ZERO
 ##This is the raw input of the player rotated to align to the POV of the player. 
-##For example, z- will always be forward to the player and x+ will always be right to the player.
+##For example, z+ will always be forward to the player and x+ will always be right to the player.
 var last_player_input_dir: Vector3 = Vector3.ZERO
 
 var GROUNDED: bool = true
@@ -111,8 +110,8 @@ static func rotate_toward_direction(object: Node3D, direction: Vector3, delta: f
 	object.rotation.y = lerp_angle(current_yaw, target_yaw, delta * rotation_speed)
 
 func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: float, pitch_mult: float) -> void:
-	var forward: Vector3 = -object.basis.z.normalized()
-
+	var forward = -model_default.transform.basis.z.normalized()
+	var slope_strength = forward.y
 	# Check if on flat ground
 	if slope_mag_dot >= 0.999:
 		# Smoothly reset tilt to 0
@@ -233,7 +232,6 @@ func process_rotations(delta: float) -> void:
 				var manual_cam_transform: Transform3D = Transform3D.IDENTITY
 				#x transform
 				manual_cam_transform = manual_cam_transform.rotated_local(GRAVITY_NORMAL, camera_movement.x)
-				
 				#y transform
 				manual_cam_transform = manual_cam_transform.rotated_local(camera.global_basis.x.normalized(), camera_movement.y)
 				
@@ -263,7 +261,9 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 	var current_dir = current_velocity.normalized()
 	var input_norm = input_dir.normalized()
 	
-	var angle_diff = rad_to_deg(acos(clampf(current_dir.dot(input_norm), -1.0, 1.0)))
+	var flat_current_dir = current_dir.project(Vector3(1, 0, 1)).normalized()
+	var flat_input_dir = input_norm.project(Vector3(1, 0, 1)).normalized()
+	var angle_diff = rad_to_deg(acos(clampf(flat_current_dir.dot(flat_input_dir), -1.0, 1.0)))
 
 	var speed_ratio = current_speed / MAXSPD
 # Use a non-linear curve for steer strength: stronger at low speeds, weaker at high speeds
@@ -282,12 +282,22 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 	# Reapply velocity with new direction
 	velocity.x = move_dir.x * gsp
 	velocity.z = move_dir.z * gsp
-
+	
 func _ready() -> void:
 	camera_default_transform = camera.transform
 
 func _physics_process(delta: float) -> void:
 	debug_label.text = ""
+	
+	# Calculate rotation that aligns body "down" with floor normal
+	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
+	
+	if not axis.is_zero_approx():
+		var quat_rotate: Quaternion = Quaternion(axis, acos(slope_mag_dot))
+		model_rotation_base.rotation = quat_rotate.get_euler()
+	else:
+		# Floor normal and up vector are the same (flat ground)
+		model_rotation_base.rotation = Vector3.ZERO
 	
 	# Input
 	var input: Vector2 = Input.get_vector(BUTTON_LEFT, BUTTON_RIGHT, BUTTON_UP, BUTTON_DOWN)
@@ -297,7 +307,17 @@ func _physics_process(delta: float) -> void:
 		input.y
 	)
 	
-	var cam_input_dir: Vector3 = (camera.global_basis * input_3).normalized()
+	# Get the camera's forward and right vectors, projected flat on the XZ plane
+	var cam_forward: Vector3 = -camera.global_transform.basis.z
+	cam_forward.y = 0
+	cam_forward = cam_forward.normalized()
+
+	var cam_right: Vector3 = camera.global_transform.basis.x
+	cam_right.y = 0
+	cam_right = cam_right.normalized()
+
+	# Use them to build a flat direction
+	var cam_input_dir: Vector3 = (cam_forward * input.y + cam_right * input.x).normalized()
 	var player_input_dir: Vector3 = (model_default.global_basis * input_3).normalized()
 	
 	var has_input: bool = not cam_input_dir.is_zero_approx() if not input.is_zero_approx() else false
@@ -306,28 +326,13 @@ func _physics_process(delta: float) -> void:
 	add_debug_info("Camera-localized Input: " + readable_vector(cam_input_dir))
 	add_debug_info("Player-localized Input: " + readable_vector(player_input_dir))
 	
-	var cam_move_dot: float = move_dir.dot(cam_input_dir)
+	var cam_input_dir_flat: Vector3 = cam_input_dir.project(Vector3(1, 0, 1)).normalized()
+	var move_dir_flat: Vector3 = move_dir.project(Vector3(1, 0, 1)).normalized()
+	var cam_move_dot: float = move_dir_flat.dot(cam_input_dir_flat)
 	var vel_move_dot: float = cam_input_dir.dot(velocity.normalized())
 	
 	add_debug_info("Cam move dot: " + readable_float(cam_move_dot))
 	add_debug_info("Vel move dot: " + readable_float(vel_move_dot))
-	
-	
-	# Find the localized "x" axis by getting the cross product between the gravity and slope vectors.
-	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
-	
-	var slope_mag_angle:float = acos(slope_mag_dot)
-	
-	var input_quat:Quaternion = Quaternion(slope_normal, input.angle())
-	var slope_quat:Quaternion = Quaternion(axis, slope_mag_angle)
-	
-	#rotate the model on its local x axis in order to align with the ground
-	if not axis.is_zero_approx():
-		var quat_rotate: Quaternion = Quaternion(axis, slope_mag_angle)
-		model_rotation_base.rotation = quat_rotate.get_euler()
-	else:
-		# Floor normal and up vector are the same (flat ground)
-		model_rotation_base.rotation = Vector3.ZERO
 	
 	if GROUNDED:
 		#STEP 1: Check for crouching, balancing, etc.
@@ -374,14 +379,15 @@ func _physics_process(delta: float) -> void:
 		#var slope_dir_dot: float = move_dir.dot(slope_normal) #works for loops if running towards camera, downhill is always towards camera
 		var slope_dir_dot: float = last_player_input_dir.dot(slope_normal)
 		
-		add_debug_info("Ground Angle " + readable_float(rad_to_deg(slope_mag_angle)))
+		add_debug_info("Ground Angle " + readable_float(rad_to_deg(acos(slope_mag_dot))))
 		
 		if not SPINDASHING:
 			# Get slope tilt from model forward tilt
+			var slope_angle:float = acos(slope_mag_dot)
 			
-			add_debug_info("Slope magnitude: " + readable_float(slope_mag_angle))
+			add_debug_info("Slope magnitude: " + readable_float(slope_mag_dot))
 			add_debug_info("Slope direction: " + readable_float(slope_dir_dot))
-			add_debug_info("Slope angle: " + readable_float(rad_to_deg(slope_mag_angle)))
+			add_debug_info("Slope angle: " + readable_float(rad_to_deg(slope_angle)))
 			
 			#slope factors do NOT apply on ceilings. 
 			#if slope_mag_dot < 1.0 and slope_mag_dot > -0.5:
@@ -398,10 +404,10 @@ func _physics_process(delta: float) -> void:
 				
 				if slope_dir_dot < 0 or Input.is_action_pressed(DEBUG_DOWNHILL): # Downhill
 					add_debug_info("RUNNING DOWNHILL")
-					gsp += slope_mag_angle * downhill_factor * delta
+					gsp += slope_angle * downhill_factor * delta
 				elif slope_dir_dot > 0 or Input.is_action_pressed(DEBUG_DOWNHILL): # Uphill
 					add_debug_info("RUNNING UP THAT HILL") #kudos if you pick up the ref :trol:
-					gsp -= slope_mag_angle * uphill_factor * delta
+					gsp -= slope_angle * uphill_factor * delta
 			
 			# Clamp slope speed
 			gsp = clampf(gsp, -MAXSPD, MAXSPD)
@@ -511,12 +517,10 @@ func _physics_process(delta: float) -> void:
 			move_vector *= gsp
 			velocity.x = move_vector.x
 			velocity.z = move_vector.z
-			
-			if is_instance_valid(spin_trail):
-				if SPINNING and GROUNDED and abs_gsp > 40:
-					spin_trail.emitting = true
-				else:
-					spin_trail.emitting = false
+			if SPINNING and GROUNDED and abs_gsp > 40:
+				spin_trail.emitting = true
+			else:
+				spin_trail.emitting = false
 		if JUMPING:
 			velocity += slope_normal * JUMP_VELOCITY
 		
