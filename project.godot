@@ -121,4 +121,5 @@ input_cursor_down={
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
+driver/depth_prepass/enable=false
 environment/defaults/default_clear_color=Color(0, 0.29689, 0.573042, 1)
