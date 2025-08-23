@@ -1,4 +1,4 @@
-[gd_scene load_steps=33 format=4 uid="uid://f4cgq5ixf1rn"]
+[gd_scene load_steps=35 format=4 uid="uid://f4cgq5ixf1rn"]
 
 [ext_resource type="Script" uid="uid://cunhx41o7se2j" path="res://scripts/Player.gd" id="1_5wody"]
 [ext_resource type="Texture2D" uid="uid://bn7xp6ckci087" path="res://assets/objects/Player/sonicmodel/Sonic v2 tex.png" id="2_e80uo"]
@@ -12,7 +12,9 @@
 [ext_resource type="AudioStream" uid="uid://c6pvqtwwbaekj" path="res://sounds/player/sfxSkid.wav" id="6_uxc30"]
 [ext_resource type="AudioStream" uid="uid://dotrhetiq7obn" path="res://sounds/player/sfxHurt.wav" id="7_itxcm"]
 [ext_resource type="AudioStream" uid="uid://dupr7l3qhsl0r" path="res://sounds/player/sfxBreathe.wav" id="8_qo0ki"]
-[ext_resource type="SpriteFrames" uid="uid://dj3rrk6d7gm4x" path="res://assets/sprites/new_sprite_frames.tres" id="13_uxc30"]
+[ext_resource type="AudioStream" uid="uid://ck4swjmyd4us6" path="res://sounds/player/sfxDropDash.wav" id="9_qo0ki"]
+[ext_resource type="PackedScene" uid="uid://bdntha45684g3" path="res://Running Dust.tscn" id="14_itxcm"]
+[ext_resource type="PackedScene" uid="uid://bigqqfpvnenjl" path="res://SpinTrail.tscn" id="14_qo0ki"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_e80uo"]
 margin = 1.682
@@ -960,7 +962,7 @@ sfx_release = ExtResource("5_xhp5d")
 sfx_skid = ExtResource("6_uxc30")
 sfx_hurt = ExtResource("7_itxcm")
 sfx_breathe = ExtResource("8_qo0ki")
-BUTTON_ROLL = &"input_b"
+sfx_dropdash = ExtResource("9_qo0ki")
 
 [node name="CollisionShape3D2" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00606082, 0.0218472, -0.0645655)
@@ -1694,6 +1696,14 @@ libraries = {
 }
 playback_default_blend_time = 0.5
 
+[node name="RunningDust" parent="CollisionShape3D2/DefaultModel/GeneralSkeleton" instance=ExtResource("14_itxcm")]
+transform = Transform3D(-0.0058805, 0, 1.4763e-10, 0, 0.00586841, 0, -1.317e-10, 0, 0.00675246, -5.11628e-05, 0.00259251, -0.00210109)
+visible = false
+
+[node name="SpinTrail" parent="CollisionShape3D2/DefaultModel/GeneralSkeleton" instance=ExtResource("14_qo0ki")]
+transform = Transform3D(-0.0058805, 0, 1.4763e-10, 0, 0.00586841, 0, -1.317e-10, 0, 0.00675246, -0.000371222, 0.00402215, -0.0183288)
+trail_lifetime = 0.6
+
 [node name="GroundRay" type="RayCast3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.58617e-10, -0.386654, 0)
 target_position = Vector3(0, -5, 0)
@@ -1728,16 +1738,3 @@ current = true
 fov = 85.0
 
 [node name="AudioPlayer" type="AudioStreamPlayer3D" parent="."]
-
-[node name="AnimatedSprite3D" type="AnimatedSprite3D" parent="."]
-transform = Transform3D(-0.999606, 0, -0.0280787, 0, 1, 0, 0.0280787, 0, -0.999606, -0.0235909, -0.372836, -1.08828)
-pixel_size = 0.05
-billboard = 1
-texture_filter = 0
-sprite_frames = ExtResource("13_uxc30")
-animation = &"Dust"
-frame = 1
-
-[node name="GPUParticles3D" type="GPUParticles3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.25062, 0)
-amount = 28

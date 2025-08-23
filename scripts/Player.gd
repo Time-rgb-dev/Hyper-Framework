@@ -5,6 +5,8 @@ extends CharacterBody3D
 ##axis to face the direction the player is giving input to.
 @onready var model_default = $CollisionShape3D2/DefaultModel
 @onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
+@onready var spintrail = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SpinTrail
+@onready var running_dust = $CollisionShape3D2/DefaultModel/GeneralSkeleton/RunningDust
 ##The base for the player's rotation. This will be rotated to align to slopes.
 @onready var model_rotation_base: Node3D = $CollisionShape3D2
 @onready var camera:Node3D = $CameraRig
@@ -21,6 +23,7 @@ extends CharacterBody3D
 @export var sfx_skid: AudioStream
 @export var sfx_hurt: AudioStream
 @export var sfx_breathe: AudioStream
+@export var sfx_dropdash: AudioStream
 
 # Constants
 @export var ACC: float = 0.30895 # 85% Classic Accurate
@@ -48,6 +51,9 @@ extends CharacterBody3D
 @export var SPINDASH_MAX: float = 100.0
 @export var SPINDASH_RELEASE_MULT = 1
 @export var SPINDASH_SLOWDOWN_THRESHOLD: float = 1.5
+
+@export var DROPDASH_CHARGE_RATE = 75.0
+@export var DROPDASH_MAX = 100.0
 
 ## GAMEPLAY TOGGLES
 @export var ROLLTYPE = 0 # [0 = CLASSIC STYLED / TOGGLE] [1 = GT & RASCAL STYLED / HOLD]
@@ -100,6 +106,7 @@ var roll_toggle_lock: bool = false
 var prev_spinning: bool = false
 
 var spindash_charge: float = 0.0
+var dropdash_charge = 0.0
 
 var slope_normal: Vector3 = Vector3.UP:
 	set(new_normal):
@@ -172,42 +179,65 @@ func process_animations() -> void:
 		if SKIDDING:
 			anim_player.play("SonicMain/AnimSkid1")
 			anim_player.speed_scale = 1.0  # Default run speed
+			running_dust.visible = false
+			spintrail.visible = false
 		elif not GROUNDED:
 			if SPINNING or (JUMPING and abs_gsp < 1.0):
 				SPINNING = true  # Ensure spinning visual even if jumping from idle
 				anim_player.play("SonicMain/AnimSpin")
 				anim_player.speed_scale = 1.0
+				running_dust.visible = false
+				spintrail.visible = false
 			else:
 				if velocity.y > 3.0:
 					anim_player.play("SonicMain/AnimAirUp")
 					anim_player.speed_scale = 1.0
+					running_dust.visible = false
+					spintrail.visible = false
 				elif velocity.y < -4.0:
 					anim_player.play("SonicMain/AnimAirDown")
 					anim_player.speed_scale = 1.0
+					running_dust.visible = false
+					spintrail.visible = false
 				else:
 					anim_player.play("SonicMain/AnimAirMid")
 					anim_player.speed_scale = 1.0
+					running_dust.visible = false
+					spintrail.visible = false
 		elif CROUCHING:
 			if not SPINDASHING:
 				anim_player.play("SonicMain/AnimCrouch")
 				anim_player.speed_scale = 1.0  # Default run speed
+				running_dust.visible = false
+				spintrail.visible = false
 			else:
 				anim_player.play("SonicMain/AnimSpin")
-				anim_player.speed_scale = 1.0  # Default run speed
+				anim_player.speed_scale = 2.0  # Default run speed
+				running_dust.visible = true
+				spintrail.visible = false
+				
 		elif SPINNING:
 			anim_player.play("SonicMain/AnimSpin")
 			anim_player.speed_scale = 1.0  # Default run speed
+			running_dust.visible = false
+			spintrail.visible = true
 		elif abs_gsp > 115:
 			anim_player.play("SonicMain/AnimPeelout")
 			var peelout_speed_scale = lerpf(0.5, 2.0, clampf(abs_gsp / 120.0, 0.0, 1.0))
 			anim_player.speed_scale = peelout_speed_scale
+			running_dust.visible = true
+			spintrail.visible = false
 		elif abs_gsp > 35:
 			anim_player.play("SonicMain/AnimRun")
 		# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
 			var run_speed_scale = lerpf(0.0, 2.0, clampf(abs_gsp / 65.0, 0.0, 1.0))
 			anim_player.speed_scale = run_speed_scale
+			running_dust.visible = true
+			spintrail.visible = false
 		elif abs_gsp > 1:
 			anim_player.play("SonicMain/AnimJog")
+			running_dust.visible = false
+			spintrail.visible = false
 
 			# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
 			anim_player.speed_scale = 1.0  # Default run speed
@@ -216,6 +246,8 @@ func process_animations() -> void:
 		else:
 			anim_player.play("SonicMain/AnimIdle")
 			anim_player.speed_scale = 1.0
+			running_dust.visible = false
+			spintrail.visible = false
 
 func process_rotations(delta: float) -> void:
 	if move_dir != Vector3.ZERO:
@@ -274,7 +306,11 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 
 	var speed_ratio = current_speed / MAXSPD
 # Use a non-linear curve for steer strength: stronger at low speeds, weaker at high speeds
-	var steer_strength = clampf(pow(1.0 - speed_ratio, 0.5), 0.1, 1.0) * 7.0
+	var k := 1.3  # steepness factor (higher = quicker dropoff)
+	var scale := 20.0  # "midpoint" speed (where curve bends)
+
+# Smooth steering falloff
+	var steer_strength = (1.0 / (1.0 + pow(current_speed / scale, k))) * 15.0
 	
 	# Apply resistance to sharp turns (bigger angle = more speed lost)
 	if not ROLLING:
@@ -582,6 +618,20 @@ func _physics_process(delta: float) -> void:
 		
 		add_debug_info("Jumping: " + str(JUMPING))
 		
+		# STEP 2: check or Dropdash Charge
+		if SPINLOCK and SPINNING and not JUMPING:
+			if Input.is_action_just_pressed(BUTTON_JUMP):
+				Global.play_sfx(audio_player, sfx_dropdash)
+			if Input.is_action_pressed(BUTTON_JUMP):
+								# Start charging Drop Dash if holding jump mid-air
+				DROPDASHING = true
+				dropdash_charge = clampf(dropdash_charge + DROPDASH_CHARGE_RATE * delta, 0, DROPDASH_MAX)
+			else:
+				# If released before landing, cancel Drop Dash
+				if not Input.is_action_pressed(BUTTON_JUMP):
+					DROPDASHING = false
+					dropdash_charge = 0.0
+		
 		#STEP 2: Super Sonic checks (not gonna worry about that)
 		
 		#STEP 3: Directional input
@@ -630,6 +680,7 @@ func _physics_process(delta: float) -> void:
 		ground_ray.target_position = -GRAVITY_NORMAL * floor_snap_length
 		
 		if ground_ray.is_colliding() and get_slide_collision_count() > 0:
+			
 			GROUNDED = true
 			ROLLING = false
 			JUMPING = false
@@ -639,6 +690,18 @@ func _physics_process(delta: float) -> void:
 			
 			#WIP: Apply velocity to ground (slope) speed
 			gsp += (1.0 - slope_mag_dot) * velocity.length()
+			
+			if DROPDASHING and dropdash_charge > 0.0:
+				# Release Drop Dash like a mini spindash
+				gsp = 75.0
+				ROLLING = true
+				SPINNING = true
+				CROUCHING = false
+				Global.play_sfx(audio_player, sfx_release)
+				
+				# Reset Drop Dash state
+				DROPDASHING = false
+				dropdash_charge = 0.0
 	
 	if has_input:
 		last_cam_input_dir = cam_input_dir
