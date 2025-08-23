@@ -52,7 +52,7 @@ extends CharacterBody3D
 @export var SPINDASH_RELEASE_MULT = 1
 @export var SPINDASH_SLOWDOWN_THRESHOLD: float = 1.5
 
-@export var DROPDASH_CHARGE_RATE = 75.0
+@export var DROPDASH_CHARGE_RATE = 100.0
 @export var DROPDASH_MAX = 100.0
 
 ## GAMEPLAY TOGGLES
@@ -161,7 +161,7 @@ func readable_float(input:float) -> String:
 	return str(snappedf(input, 0.01))
 
 func process_animations() -> void:
-	spinball_mesh.visible = SPINNING and not DROPDASHING
+	spinball_mesh.visible = DROPDASHING or SPINDASHING
 	
 	# --- Detect Spin State Transitions ---
 	if GROUNDED:
@@ -218,8 +218,9 @@ func process_animations() -> void:
 				
 		elif SPINNING:
 			anim_player.play("SonicMain/AnimSpin")
-			anim_player.speed_scale = 1.0  # Default run speed
-			running_dust.visible = false
+			var spin_speed_scale = lerpf(0.05, 1.0, clampf(abs_gsp / 60.0, 0.0, 1.0))
+			anim_player.speed_scale = spin_speed_scale
+			running_dust.visible = true
 			spintrail.visible = true
 		elif abs_gsp > 115:
 			anim_player.play("SonicMain/AnimPeelout")
@@ -306,11 +307,11 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 
 	var speed_ratio = current_speed / MAXSPD
 # Use a non-linear curve for steer strength: stronger at low speeds, weaker at high speeds
-	var k := 1.3  # steepness factor (higher = quicker dropoff)
-	var scale := 20.0  # "midpoint" speed (where curve bends)
+	var k := 1.5  # steepness factor (higher = quicker dropoff)
+	var scale := 25.0  # "midpoint" speed (where curve bends)
 
 # Smooth steering falloff
-	var steer_strength = (1.0 / (1.0 + pow(current_speed / scale, k))) * 15.0
+	var steer_strength = (1.0 / (2.0 + pow(current_speed / scale, k))) * 15.0
 	
 	# Apply resistance to sharp turns (bigger angle = more speed lost)
 	if not ROLLING:
@@ -350,6 +351,8 @@ func _physics_process(delta: float) -> void:
 		input.y
 	)
 	
+	
+		
 	var cam_input_dir: Vector3 = (camera.global_basis * input_3).normalized()
 	var player_input_dir: Vector3 = (model_default.global_basis * input_3).normalized()
 	
@@ -365,6 +368,16 @@ func _physics_process(delta: float) -> void:
 	add_debug_info("Cam move dot: " + readable_float(cam_move_dot))
 	add_debug_info("Vel move dot: " + readable_float(vel_move_dot))
 	
+	func update_camera(delta: float) -> void:
+		# Copy player's up/down orientation (twist on slopes)
+		var target_basis = model_rotation_base.global_basis
+
+		# Smoothly interpolate camera's basis to avoid jitter
+		var cam_basis = camera.global_basis
+		cam_basis = cam_basis.slerp(target_basis, delta * 5.0) # adjust smoothing speed
+
+		camera.global_basis = cam_basis
+		
 	# SPINNING DETECTION
 	if ROLLING or JUMPING or SPINDASHING or SPINLOCK:
 		SPINNING = true
@@ -691,13 +704,14 @@ func _physics_process(delta: float) -> void:
 			#WIP: Apply velocity to ground (slope) speed
 			gsp += (1.0 - slope_mag_dot) * velocity.length()
 			
-			if DROPDASHING and dropdash_charge > 0.0:
-				# Release Drop Dash like a mini spindash
-				gsp = 75.0
-				ROLLING = true
-				SPINNING = true
-				CROUCHING = false
-				Global.play_sfx(audio_player, sfx_release)
+			if DROPDASHING:
+				if dropdash_charge > 49.0:
+					# Release Drop Dash like a mini spindash
+					gsp = 115.0
+					ROLLING = true
+					SPINNING = true
+					CROUCHING = false
+					Global.play_sfx(audio_player, sfx_release)
 				
 				# Reset Drop Dash state
 				DROPDASHING = false
@@ -709,3 +723,4 @@ func _physics_process(delta: float) -> void:
 	
 	process_rotations(delta)
 	process_animations()
+	update_camera(delta)
