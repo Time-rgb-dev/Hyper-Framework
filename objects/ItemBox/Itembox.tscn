@@ -1,0 +1,64 @@
+[gd_scene load_steps=10 format=3 uid="uid://h5kqn3bag3fi"]
+
+[ext_resource type="ArrayMesh" uid="uid://dsr1vmk03uq0y" path="res://assets/objects/Itembox/monitor_model.obj" id="1_tcly0"]
+[ext_resource type="Script" uid="uid://bssfhqycklo6t" path="res://objects/ItemBox/Itembox_Event.gd" id="1_wa8fq"]
+[ext_resource type="AudioStream" uid="uid://dm22fahcu0pd4" path="res://sounds/objects/sfxDestroy.wav" id="2_5npl4"]
+[ext_resource type="ArrayMesh" uid="uid://pkvprly3neoo" path="res://assets/objects/Itembox/monitor_model_broken.obj" id="2_lsljx"]
+[ext_resource type="AudioStream" uid="uid://bm8st6c8kho8s" path="res://sounds/objects/sfxRing.wav" id="2_vd4o8"]
+[ext_resource type="AudioStream" uid="uid://c2ucd6d2f4ljv" path="res://sounds/objects/sfxBarrier.wav" id="4_4gg7v"]
+[ext_resource type="AudioStream" uid="uid://dlm2ktdy2chwv" path="res://sounds/player/sfxExtraLife.ogg" id="5_h4xdx"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_lsljx"]
+size = Vector3(3, 3, 3)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ep706"]
+vertex_color_use_as_albedo = true
+vertex_color_is_srgb = true
+metallic = 1.0
+metallic_specular = 0.0
+roughness = 0.4
+rim_tint = 1.0
+refraction_scale = -1.0
+refraction_texture_channel = 3
+
+[node name="Itembox" type="Area3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0763502, -0.0299907, -0.0793273)
+script = ExtResource("1_wa8fq")
+sfx_destroy = ExtResource("2_5npl4")
+sfx_ring = ExtResource("2_vd4o8")
+sfx_barrier = ExtResource("4_4gg7v")
+sfx_extra_life = ExtResource("5_h4xdx")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0012846, -0.00366378, 0.208923)
+shape = SubResource("BoxShape3D_lsljx")
+debug_color = Color(0, 0.595, 0.7, 1)
+
+[node name="ModelNormal" type="MeshInstance3D" parent="CollisionShape3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1.3, 0, -0.980485, 0.103788)
+mesh = ExtResource("1_tcly0")
+surface_material_override/0 = SubResource("StandardMaterial3D_ep706")
+
+[node name="ModelBroken" type="MeshInstance3D" parent="CollisionShape3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1.3, -0.00886893, -0.997692, 0.103329)
+visible = false
+mesh = ExtResource("2_lsljx")
+surface_material_override/0 = SubResource("StandardMaterial3D_ep706")
+
+[node name="AudioPlayer" type="AudioStreamPlayer3D" parent="."]
+visible = false
+max_distance = 500.0
+max_polyphony = 5
+area_mask = 65535
+playback_type = 1
+attenuation_filter_db = 0.0
+doppler_tracking = 1
+
+[node name="AudioPlayer2" type="AudioStreamPlayer3D" parent="."]
+visible = false
+max_distance = 500.0
+max_polyphony = 5
+area_mask = 65535
+playback_type = 1
+attenuation_filter_db = 0.0
+doppler_tracking = 1

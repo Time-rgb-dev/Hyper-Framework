@@ -1,0 +1,53 @@
+[gd_scene load_steps=10 format=3 uid="uid://bdntha45684g3"]
+
+[sub_resource type="Curve" id="Curve_gtiym"]
+_data = [Vector2(0, 0.974035), 0.0, 0.0, 0, 0, Vector2(0.608553, 0.298935), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_nfeme"]
+curve = SubResource("Curve_gtiym")
+
+[sub_resource type="Gradient" id="Gradient_gtiym"]
+offsets = PackedFloat32Array(0, 0.464029, 1)
+colors = PackedColorArray(0.734874, 0.794745, 0.870994, 1, 1, 1, 1, 1, 0.6351, 0.79953, 0.87, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_nfeme"]
+gradient = SubResource("Gradient_gtiym")
+
+[sub_resource type="Curve" id="Curve_up3by"]
+_limits = [0.0, 2.0, 0.0, 1.0]
+_data = [Vector2(0, 0.511318), 0.0, 4.30553, 0, 0, Vector2(0.523026, 1.72304), 0.0, 0.0, 0, 0, Vector2(0.990132, 0.00889456), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_7xsm1"]
+curve = SubResource("Curve_up3by")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_kdegg"]
+direction = Vector3(0, 0, -1)
+spread = 30.0
+flatness = 0.562
+initial_velocity_min = 4.0
+initial_velocity_max = 6.0
+gravity = Vector3(0, 2, 0)
+damping_min = 0.115
+damping_max = 2.155
+scale_curve = SubResource("CurveTexture_7xsm1")
+scale_over_velocity_max = 1.35
+color_ramp = SubResource("GradientTexture1D_nfeme")
+alpha_curve = SubResource("CurveTexture_nfeme")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_up3by"]
+transparency = 1
+vertex_color_use_as_albedo = true
+
+[sub_resource type="SphereMesh" id="SphereMesh_e1k7o"]
+material = SubResource("StandardMaterial3D_up3by")
+rings = 64
+
+[node name="RunningDust" type="GPUParticles3D"]
+amount = 24
+lifetime = 0.5
+randomness = 1.0
+fixed_fps = 60
+process_material = SubResource("ParticleProcessMaterial_kdegg")
+draw_pass_1 = SubResource("SphereMesh_e1k7o")

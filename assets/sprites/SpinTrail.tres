@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://cmuahviblclei"]
+
+[resource]
+shading_mode = 0
+disable_fog = true
+vertex_color_use_as_albedo = true
+billboard_keep_scale = true
