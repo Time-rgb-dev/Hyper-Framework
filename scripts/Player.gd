@@ -22,6 +22,7 @@ extends CharacterBody3D
 @export var sfx_release: AudioStream
 @export var sfx_skid: AudioStream
 @export var sfx_hurt: AudioStream
+@export var sfx_ringloss: AudioStream
 @export var sfx_breathe: AudioStream
 @export var sfx_dropdash: AudioStream
 
@@ -40,7 +41,7 @@ extends CharacterBody3D
 @export var GRAVITY_NORMAL: Vector3 = Vector3.UP ##The normal (up direction) of gravity
 
 ## SLOPES
-@export var NORMAL_SLOPE_POWER: float = 75.0
+@export var NORMAL_SLOPE_POWER: float = 100.0
 @export var ROLL_SLOPE_POWER: float = 150.0
 
 ## WALL THRESHOLD
@@ -100,13 +101,20 @@ var JUMPING: bool  = false
 var DROPDASHING: bool = false
 var SPINDASHING: bool = false
 var SKIDDING: bool = false
+var HURT : bool = false
+var DEAD : bool = false
 
 var SPINLOCK = false
 var roll_toggle_lock: bool = false
 var prev_spinning: bool = false
 
+var IFRAMES: float = 0.0
+var sec_accum: float = 0.0
+
+var BARRIER: bool = false
+
 var spindash_charge: float = 0.0
-var dropdash_charge = 0.0
+var dropdash_charge: float = 0.0
 
 var slope_normal: Vector3 = Vector3.UP:
 	set(new_normal):
@@ -165,91 +173,99 @@ func process_animations() -> void:
 	
 	# --- Detect Spin State Transitions ---
 	if GROUNDED:
-		if SPINNING and not prev_spinning and not JUMPING:
+		if SPINNING and not prev_spinning and ROLLING:
+			anim_player.speed_scale = 1.0
 			anim_player.play("SonicMain/AnimRollEnd")
 		elif not SPINNING and prev_spinning and Input.is_action_pressed(BUTTON_ROLL):
+			anim_player.speed_scale = 1.0
 			anim_player.play("SonicMain/AnimRollStart")
 	
 	prev_spinning = SPINNING
 	
 	if not anim_player.is_playing() or (
 		anim_player.current_animation != "SonicMain/AnimRollStart"
-		and anim_player.current_animation != "SonicMain/AnimRollEnd"
+		and anim_player.current_animation != "SonicMain/AnimRollEnd" and anim_player.current_animation != "SonicMain/AnimHurt"
 	):
-		if SKIDDING:
-			anim_player.play("SonicMain/AnimSkid1")
-			anim_player.speed_scale = 1.0  # Default run speed
-			running_dust.visible = false
-			spintrail.visible = false
-		elif not GROUNDED:
-			if SPINNING or (JUMPING and abs_gsp < 1.0):
-				SPINNING = true  # Ensure spinning visual even if jumping from idle
-				anim_player.play("SonicMain/AnimSpin")
-				anim_player.speed_scale = 1.0
-				running_dust.visible = false
-				spintrail.visible = false
-			else:
-				if velocity.y > 3.0:
-					anim_player.play("SonicMain/AnimAirUp")
-					anim_player.speed_scale = 1.0
-					running_dust.visible = false
-					spintrail.visible = false
-				elif velocity.y < -4.0:
-					anim_player.play("SonicMain/AnimAirDown")
-					anim_player.speed_scale = 1.0
-					running_dust.visible = false
-					spintrail.visible = false
-				else:
-					anim_player.play("SonicMain/AnimAirMid")
-					anim_player.speed_scale = 1.0
-					running_dust.visible = false
-					spintrail.visible = false
-		elif CROUCHING:
-			if not SPINDASHING:
-				anim_player.play("SonicMain/AnimCrouch")
+		if not HURT:
+			if SKIDDING:
+				anim_player.play("SonicMain/AnimSkid1")
 				anim_player.speed_scale = 1.0  # Default run speed
-				running_dust.visible = false
-				spintrail.visible = false
-			else:
+				running_dust.emitting = false
+				spintrail.emitting = false
+			elif not GROUNDED:
+				if SPINNING or (JUMPING and abs_gsp < 1.0):
+					SPINNING = true  # Ensure spinning visual even if jumping from idle
+					anim_player.play("SonicMain/AnimSpin")
+					anim_player.speed_scale = 1.0
+					running_dust.emitting = false
+					spintrail.emitting = false
+				else:
+					if velocity.y > 3.0:
+						anim_player.play("SonicMain/AnimAirUp")
+						anim_player.speed_scale = 1.0
+						running_dust.emitting = false
+						spintrail.emitting = false
+					elif velocity.y < -4.0:
+						anim_player.play("SonicMain/AnimAirDown")
+						anim_player.speed_scale = 1.0
+						running_dust.emitting = false
+						spintrail.emitting = false
+					else:
+						anim_player.play("SonicMain/AnimAirMid")
+						anim_player.speed_scale = 1.0
+						running_dust.emitting = false
+						spintrail.emitting = false
+			elif CROUCHING:
+				if not SPINDASHING:
+					anim_player.play("SonicMain/AnimCrouch")
+					anim_player.speed_scale = 1.0  # Default run speed
+					running_dust.emitting = false
+					spintrail.emitting = false
+				else:
+					anim_player.play("SonicMain/AnimSpin")
+					anim_player.speed_scale = 2.0  # Default run speed
+					running_dust.emitting = true
+					spintrail.emitting = false
+					
+			elif SPINNING:
 				anim_player.play("SonicMain/AnimSpin")
-				anim_player.speed_scale = 2.0  # Default run speed
-				running_dust.visible = true
-				spintrail.visible = false
-				
-		elif SPINNING:
-			anim_player.play("SonicMain/AnimSpin")
-			var spin_speed_scale = lerpf(0.05, 1.0, clampf(abs_gsp / 60.0, 0.0, 1.0))
-			anim_player.speed_scale = spin_speed_scale
-			running_dust.visible = true
-			spintrail.visible = true
-		elif abs_gsp > 115:
-			anim_player.play("SonicMain/AnimPeelout")
-			var peelout_speed_scale = lerpf(0.5, 2.0, clampf(abs_gsp / 120.0, 0.0, 1.0))
-			anim_player.speed_scale = peelout_speed_scale
-			running_dust.visible = true
-			spintrail.visible = false
-		elif abs_gsp > 35:
-			anim_player.play("SonicMain/AnimRun")
-		# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
-			var run_speed_scale = lerpf(0.0, 2.0, clampf(abs_gsp / 65.0, 0.0, 1.0))
-			anim_player.speed_scale = run_speed_scale
-			running_dust.visible = true
-			spintrail.visible = false
-		elif abs_gsp > 1:
-			anim_player.play("SonicMain/AnimJog")
-			running_dust.visible = false
-			spintrail.visible = false
-
+				#var spin_speed_scale = lerpf(0.5, 1.0, clampf(abs_gsp / 60.0, 0.0, 1.0))
+				anim_player.speed_scale = 1.0 #spin_speed_scale
+				running_dust.emitting = true
+				spintrail.emitting = true
+			elif abs_gsp > 115:
+				anim_player.play("SonicMain/AnimPeelout")
+				var peelout_speed_scale = lerpf(0.5, 2.0, clampf(abs_gsp / 120.0, 0.0, 1.0))
+				anim_player.speed_scale = peelout_speed_scale
+				running_dust.emitting = true
+				spintrail.emitting = false
+			elif abs_gsp > 35:
+				anim_player.play("SonicMain/AnimRun")
 			# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
-			anim_player.speed_scale = 1.0  # Default run speed
-			var walk_speed_scale: float = lerpf(0.05, 1.0, clampf(abs_gsp / 15.0, 0.0, 1.0))
-			anim_player.speed_scale = walk_speed_scale
-		else:
-			anim_player.play("SonicMain/AnimIdle")
-			anim_player.speed_scale = 1.0
-			running_dust.visible = false
-			spintrail.visible = false
+				var run_speed_scale = lerpf(0.0, 2.0, clampf(abs_gsp / 65.0, 0.0, 1.0))
+				anim_player.speed_scale = run_speed_scale
+				running_dust.emitting = true
+				spintrail.emitting = false
+			elif abs_gsp > 1:
+				anim_player.play("SonicMain/AnimJog")
+				running_dust.emitting = false
+				spintrail.emitting = false
 
+				# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
+				anim_player.speed_scale = 1.0  # Default run speed
+				var walk_speed_scale: float = lerpf(0.05, 1.0, clampf(abs_gsp / 15.0, 0.0, 1.0))
+				anim_player.speed_scale = walk_speed_scale
+			else:
+				anim_player.play("SonicMain/AnimIdle")
+				anim_player.speed_scale = 1.0
+				running_dust.emitting = false
+				spintrail.visible = false
+		else:
+				anim_player.play("SonicMain/AnimHurt")
+				anim_player.speed_scale = 1.0  # Default run speed
+				running_dust.emitting = false
+				spintrail.visible = false
+			
 func process_rotations(delta: float) -> void:
 	if move_dir != Vector3.ZERO:
 		if not SKIDDING:
@@ -326,7 +342,32 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 	# Reapply velocity with new direction
 	velocity.x = move_dir.x * gsp
 	velocity.z = move_dir.z * gsp
-	
+
+
+func player_damage(fire : bool, lightning : bool, spikes : bool, instakill : bool):
+	if not HURT and !IFRAMES:
+		# Launch upward by modifying vertical velocity
+		velocity.y = 40.0
+		gsp = -30.0
+		velocity.x = 0
+		velocity.z = 0
+		GROUNDED = false
+		SPINNING = false
+		JUMPING = false
+		HURT = true
+		IFRAMES = 200.0
+		Global.play_sfx(audio_player, sfx_hurt)
+		if !BARRIER:
+			if Global.Rings:
+				Global.Rings = 0
+				Global.play_sfx(audio_player, sfx_ringloss)
+			else:
+				#Kill player
+				DEAD = true
+		else:
+			BARRIER = false
+
+
 func _ready() -> void:
 	camera_default_transform = camera.transform
 
@@ -335,6 +376,24 @@ func _physics_process(delta: float) -> void:
 	
 	# Calculate rotation that aligns body "down" with floor normal
 	var axis: Vector3 = GRAVITY_NORMAL.cross(slope_normal).normalized()
+	
+	# IFrames subtraction and player flashing
+	if IFRAMES:
+		
+		sec_accum += delta
+		
+		if sec_accum >= 0.010: #if a second or so has passed
+			visible = false
+		
+		
+		if sec_accum >= 0.050:
+			visible = true
+			sec_accum = 0.0
+		
+		IFRAMES = maxf(IFRAMES - 1, 0)
+		clamp(IFRAMES, 0, 9999)
+	else:
+		visible = true
 	
 	if not axis.is_zero_approx():
 		var quat_rotate: Quaternion = Quaternion(axis, acos(slope_mag_dot))
@@ -368,15 +427,6 @@ func _physics_process(delta: float) -> void:
 	add_debug_info("Cam move dot: " + readable_float(cam_move_dot))
 	add_debug_info("Vel move dot: " + readable_float(vel_move_dot))
 	
-	func update_camera(delta: float) -> void:
-		# Copy player's up/down orientation (twist on slopes)
-		var target_basis = model_rotation_base.global_basis
-
-		# Smoothly interpolate camera's basis to avoid jitter
-		var cam_basis = camera.global_basis
-		cam_basis = cam_basis.slerp(target_basis, delta * 5.0) # adjust smoothing speed
-
-		camera.global_basis = cam_basis
 		
 	# SPINNING DETECTION
 	if ROLLING or JUMPING or SPINDASHING or SPINLOCK:
@@ -388,7 +438,7 @@ func _physics_process(delta: float) -> void:
 		#STEP 1: Check for crouching, balancing, etc.
 		CROUCHING = Input.is_action_pressed(BUTTON_ROLL) and abs_gsp <= 5.0
 		
-		var can_move:bool = not (SPINDASHING or CROUCHING)
+		var can_move:bool = not (SPINDASHING or CROUCHING or HURT)
 		
 		#STEP 2: Check for starting a spindash
 		if SPINDASHTYPE == 0:
@@ -653,7 +703,7 @@ func _physics_process(delta: float) -> void:
 		#var current_speed: float = current_h_velocity.length()
 		#var current_h_dir: Vector3 = current_h_velocity.normalized() if current_speed > 0.01 else Vector3.ZERO
 		
-		if has_input:
+		if has_input and not HURT:
 			apply_steering(cam_input_dir, delta)
 			if abs_gsp < MAXACC:
 				# Adjust acceleration based on input alignment
@@ -699,6 +749,7 @@ func _physics_process(delta: float) -> void:
 			JUMPING = false
 			SPINLOCK = false
 			SPINNING = false
+			HURT = false
 			slope_normal = ground_ray.get_collision_normal()
 			
 			#WIP: Apply velocity to ground (slope) speed
@@ -707,7 +758,7 @@ func _physics_process(delta: float) -> void:
 			if DROPDASHING:
 				if dropdash_charge > 49.0:
 					# Release Drop Dash like a mini spindash
-					gsp = 115.0
+					gsp = 80.0
 					ROLLING = true
 					SPINNING = true
 					CROUCHING = false
@@ -723,4 +774,3 @@ func _physics_process(delta: float) -> void:
 	
 	process_rotations(delta)
 	process_animations()
-	update_camera(delta)

@@ -1,7 +1,10 @@
 extends Node
 
-@onready var Rings = 0
 @onready var Score = 0
+@onready var Rings = 0
+@onready var Lives = 3
+
+
 @onready var CHECKPOINT_DATA = 0
 
 @onready var TIME_ENABLED = true
@@ -43,3 +46,4 @@ func play_sfx(sfx_player: AudioStreamPlayer3D, sfx: AudioStream) -> void:
 			set_process(false)
 		else:
 			set_process(true)
+	

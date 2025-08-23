@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3 uid="uid://cleja6agxhg0s"]
+
+[ext_resource type="PackedScene" uid="uid://c5ohyetgjc760" path="res://objects/Rings/Ring.tscn" id="1_gkjvg"]
+
+[node name="RingTrail-5" type="Node3D"]
+
+[node name="Ring" parent="." instance=ExtResource("1_gkjvg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.601293, -0.0299907, 4.21962)
+
+[node name="Ring2" parent="." instance=ExtResource("1_gkjvg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.601293, -0.0299907, 2.21962)
+
+[node name="Ring3" parent="." instance=ExtResource("1_gkjvg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.601293, -0.0299907, 0.219617)
+
+[node name="Ring4" parent="." instance=ExtResource("1_gkjvg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.601293, -0.0299907, -1.78038)
+
+[node name="Ring5" parent="." instance=ExtResource("1_gkjvg")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.601293, -0.0299907, -3.78038)

@@ -1,4 +1,4 @@
-[gd_resource type="AnimationLibrary" load_steps=15 format=3 uid="uid://3s1ydgfoo3ep"]
+[gd_resource type="AnimationLibrary" load_steps=16 format=3 uid="uid://3s1ydgfoo3ep"]
 
 [ext_resource type="Animation" uid="uid://bqo6xte4du7c7" path="res://assets/objects/Player/sonicmodel/animations/Sonic Rig_Sonic Jog.res" id="1_6icjq"]
 [ext_resource type="Animation" uid="uid://vxcyhqod3dkt" path="res://assets/objects/Player/sonicmodel/animations/Sonic Rig_Sonic Idle A.res" id="2_b2l1t"]
@@ -14,6 +14,7 @@
 [ext_resource type="Animation" uid="uid://g1otwm4hirxb" path="res://assets/objects/Player/sonicmodel/animations/Sonic Rig_Sonic Skid 2 A.res" id="12_ywhd3"]
 [ext_resource type="Animation" uid="uid://m3nh44gbknfp" path="res://assets/objects/Player/sonicmodel/animations/Sonic Rig_Sonic Skid 2 B.res" id="13_k0kcg"]
 [ext_resource type="Animation" uid="uid://bfoe4m2idbb34" path="res://assets/objects/Player/sonicmodel/animations/Sonic Rig_Sonic Duck A.res" id="14_ywhd3"]
+[ext_resource type="Animation" uid="uid://b2imc6h010pg2" path="res://assets/objects/Player/sonicmodel/animations/Sonic Rig_Sonic Hurt.res" id="15_u5aih"]
 
 [resource]
 _data = {
@@ -21,6 +22,7 @@ _data = {
 &"AnimAirMid": ExtResource("9_lj212"),
 &"AnimAirUp": ExtResource("10_lt6u4"),
 &"AnimCrouch": ExtResource("14_ywhd3"),
+&"AnimHurt": ExtResource("15_u5aih"),
 &"AnimIdle": ExtResource("2_b2l1t"),
 &"AnimJog": ExtResource("1_6icjq"),
 &"AnimPeelout": ExtResource("5_yeswa"),

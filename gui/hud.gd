@@ -34,4 +34,6 @@ func _physics_process(delta: float) -> void:
 		sec_accum = 0.0
 		
 		# Update rings display every frame (or you can optimize to update only on change)  
+	score_label.text = str(Global.Score)
 	rings_label.text = str(Global.Rings)
+	lives_label.text = str(Global.Lives)

@@ -27,4 +27,4 @@ func tilt_to_normal(normal: Vector3, delta: float) -> void:
 	target_pitch *= -2.5
 	
 	# Smoothly apply the tilt
-	rotation.x = lerp_angle(rottion.x, -target_pitch, delta * TILT_SPEED)
+	rotation.x = lerp_angle(rotation.x, -target_pitch, delta * TILT_SPEED)

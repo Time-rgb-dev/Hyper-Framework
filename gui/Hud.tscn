@@ -4,12 +4,12 @@
 [ext_resource type="Script" uid="uid://cxqx2gqwq1nn2" path="res://gui/hud.gd" id="1_4yg4n"]
 [ext_resource type="LabelSettings" uid="uid://bn8k114i30be4" path="res://gui/fonts_and_text/Disclaimer_label_settings.tres" id="3_2ok7i"]
 [ext_resource type="LabelSettings" uid="uid://das3ndyn8rdyn" path="res://gui/fonts_and_text/Hud_info_label_settings.tres" id="3_mvpr0"]
-[ext_resource type="Texture2D" uid="uid://cc1nykgplfu4x" path="res://gui/tex_gui_lifeicon_sonic.png" id="4_jb043"]
+[ext_resource type="Texture2D" uid="uid://dmoxdv1bb1y3f" path="res://assets/objects/Itembox/spr_itembox_extralife.png" id="4_jb043"]
 [ext_resource type="FontFile" uid="uid://cxpij6m60qftm" path="res://gui/fonts_and_text/GreenHillSans.ttf" id="5_t3ort"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_1epmb"]
 font = ExtResource("5_t3ort")
-font_size = 75
+font_size = 35
 shadow_color = Color(0, 0, 0, 1)
 
 [node name="CanvasLayer" type="CanvasLayer"]
@@ -111,7 +111,7 @@ size_flags_horizontal = 2
 
 [node name="Icon" type="TextureRect" parent="HUD/Margins/Everything/Bottom/Lives"]
 texture_filter = 3
-custom_minimum_size = Vector2(100, 100)
+custom_minimum_size = Vector2(50, 50)
 layout_mode = 2
 size_flags_vertical = 4
 texture = ExtResource("4_jb043")
@@ -127,11 +127,9 @@ label_settings = SubResource("LabelSettings_1epmb")
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 8
-text = "3"
 label_settings = SubResource("LabelSettings_1epmb")
 
 [node name="Pre-Release Disclaimer" type="Label" parent="HUD/Margins/Everything/Bottom"]
-visible = false
 custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 size_flags_horizontal = 3

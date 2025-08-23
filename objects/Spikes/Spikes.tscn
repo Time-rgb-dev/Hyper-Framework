@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=3 uid="uid://cisksyh165i4k"]
+
+[ext_resource type="Script" uid="uid://cktv2j3yiis8u" path="res://objects/Spikes/Spikes_Event.gd" id="1_6q2tn"]
+[ext_resource type="ArrayMesh" uid="uid://qmaogrt3nlkx" path="res://assets/objects/Spikes/model_spikes.obj" id="1_sa4vr"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6q2tn"]
+size = Vector3(3, 1.8, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_sa4vr"]
+size = Vector3(3, 1.8, 3)
+
+[node name="Spikes" type="Area3D"]
+script = ExtResource("1_6q2tn")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02217, 0)
+shape = SubResource("BoxShape3D_6q2tn")
+debug_color = Color(1, 0, 0, 1)
+
+[node name="StaticBody3D" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+shape = SubResource("BoxShape3D_sa4vr")
+debug_color = Color(0, 0.595, 0.7, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StaticBody3D/CollisionShape3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+mesh = ExtResource("1_sa4vr")
+
+[node name="AudioPlayer" type="AudioStreamPlayer3D" parent="StaticBody3D"]
+visible = false
+attenuation_filter_db = 0.0

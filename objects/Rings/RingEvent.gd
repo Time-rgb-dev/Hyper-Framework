@@ -2,6 +2,7 @@ extends Area3D
 
 @export var spin_speed = 125.0
 @export var ring_value = 1
+@export var score_value = 10
 
 # Sound Player
 @onready var audio_player: AudioStreamPlayer3D = $AudioPlayer
@@ -18,6 +19,7 @@ func _process(delta):
 func _on_body_entered(body):
 	Global.play_sfx(audio_player, sfx_ring)
 	Global.Rings += ring_value
+	Global.Score += score_value
 
 	# Disable visuals & collision
 	if model: model.visible = false

@@ -1,22 +1,14 @@
-[gd_scene load_steps=8 format=3 uid="uid://cbjhtwtkrilqv"]
+[gd_scene load_steps=7 format=3 uid="uid://cbjhtwtkrilqv"]
 
 [ext_resource type="Script" uid="uid://cn5gf1jt6hub7" path="res://objects/Springs/Yellow/YellowSpringEvent.gd" id="1_e0fr5"]
-[ext_resource type="ArrayMesh" uid="uid://ek305ok4ktt0" path="res://assets/objects/Springs/Yellow/KLASH SPRING YELLOW.obj" id="2_05ky1"]
+[ext_resource type="ArrayMesh" uid="uid://ek305ok4ktt0" path="res://assets/objects/Springs/model_spring.obj" id="2_05ky1"]
 [ext_resource type="AudioStream" uid="uid://x36gs1hx3jiw" path="res://sounds/objects/sfxSpring.wav" id="2_tipjx"]
+[ext_resource type="Material" uid="uid://c2cadvcje8s6v" path="res://objects/Itembox/Metal.tres" id="4_s1jcu"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_tipjx"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_e0fr5"]
-vertex_color_use_as_albedo = true
-albedo_color = Color(0.47, 0.47, 0.47, 1)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tipjx"]
-vertex_color_use_as_albedo = true
-albedo_color = Color(0.53, 0.53, 0.53, 1)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_s1jcu"]
-vertex_color_use_as_albedo = true
-albedo_color = Color(1, 0.683333, 0, 1)
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_371yg"]
+albedo_color = Color(1, 0.6, 0, 1)
 
 [node name="YellowSpring" type="Area3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0337925, 2.38419e-07, -0.0184612)
@@ -30,9 +22,9 @@ shape = SubResource("SphereShape3D_tipjx")
 [node name="MeshInstance3D" type="MeshInstance3D" parent="CollisionShape3D"]
 transform = Transform3D(0.25, 0, 0, 0, 0.25, 0, 0, 0, 0.25, 0.000574688, -0.417206, 0.00119668)
 mesh = ExtResource("2_05ky1")
-surface_material_override/0 = SubResource("StandardMaterial3D_e0fr5")
-surface_material_override/1 = SubResource("StandardMaterial3D_tipjx")
-surface_material_override/2 = SubResource("StandardMaterial3D_s1jcu")
+surface_material_override/0 = ExtResource("4_s1jcu")
+surface_material_override/1 = ExtResource("4_s1jcu")
+surface_material_override/2 = SubResource("StandardMaterial3D_371yg")
 
 [node name="AudioPlayer" type="AudioStreamPlayer3D" parent="."]
 visible = false
