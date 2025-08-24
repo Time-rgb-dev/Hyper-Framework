@@ -27,6 +27,10 @@ extends CharacterBody3D
 @export var sfx_breathe: AudioStream
 @export var sfx_dropdash: AudioStream
 
+@export var sfx_waterbarrier: AudioStream
+@export var sfx_thunderbarrier: AudioStream
+@export var sfx_firebarrier: AudioStream
+
 # Constants
 @export var ACC: float = 0.30895 # 85% Classic Accurate
 @export var AIR_ACC: float = 0.35895
@@ -59,6 +63,7 @@ extends CharacterBody3D
 @export var DROPDASH_MAX = 100.0
 
 ## GAMEPLAY TOGGLES
+@export var DROPDASH_ENABLED : bool = true
 @export var ROLLTYPE = 0 # [0 = CLASSIC STYLED / TOGGLE] [1 = GT & RASCAL STYLED / HOLD]
 @export var SPINDASHTYPE = 0 # [0 = CROUCH AND PRESS A TO REV, RELEASE CROUCH] [1 = HOLD RT AND A TO REV, RELEASE JUMP] [2 = HOLD CROUCH TO REV, RELEASE CROUCH]
 
@@ -121,6 +126,9 @@ var IFRAMES: float = 0.0
 var sec_accum: float = 0.0
 
 var BARRIER: bool = false
+var BARRIER_TYPE: String = "None"
+
+var BARRIER_USED: bool = false
 
 var spindash_charge: float = 0.0
 var dropdash_charge: float = 0.0
@@ -360,8 +368,8 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 
 func player_damage(fire : bool, lightning : bool, spikes : bool, instakill : bool):
 	if not HURT and !IFRAMES:
-		velocity.y = 40.0
-		gsp = -30.0
+		velocity.y = 30.0
+		gsp = -20.0
 		velocity.x = 0
 		velocity.z = 0
 		GROUNDED = false
@@ -382,6 +390,7 @@ func player_damage(fire : bool, lightning : bool, spikes : bool, instakill : boo
 				DEAD = true
 		else:
 			BARRIER = false
+			BARRIER_TYPE = "None"
 
 
 func _ready() -> void:
@@ -700,7 +709,7 @@ func _physics_process(delta: float) -> void:
 		add_debug_info("Jumping: " + str(JUMPING))
 		
 		# STEP 2: check or Dropdash Charge
-		if SPINLOCK and SPINNING and not JUMPING:
+		if SPINLOCK and SPINNING and not JUMPING and DROPDASH_ENABLED and not BARRIER:
 			if Input.is_action_just_pressed(BUTTON_JUMP):
 				Global.play_sfx(audio_player, sfx_dropdash)
 			if Input.is_action_pressed(BUTTON_JUMP):
@@ -715,6 +724,23 @@ func _physics_process(delta: float) -> void:
 					DROPDASHING = false
 					dropdash_charge = 0.0
 		
+		if BARRIER:
+			if SPINLOCK and SPINNING and not JUMPING and not BARRIER_USED:
+					if Input.is_action_just_pressed(BUTTON_ROLL):
+						match BARRIER_TYPE:
+							"Normal":
+								abs_gsp =0.0
+								velocity.y = 0.0
+								SPINNING = false
+							"Water":
+								abs_gsp = 0.0
+								velocity.y = -70.0
+							"Thunder":
+								velocity.y = 50.0
+								
+							"Fire":gsp = 75.0 
+						BARRIER_USED = true
+								
 		#STEP 2: Super Sonic checks (not gonna worry about that)
 		
 		#STEP 3: Directional input
@@ -770,6 +796,12 @@ func _physics_process(delta: float) -> void:
 			SPINLOCK = false
 			SPINNING = false
 			HURT = false
+			if BARRIER_TYPE == "Water" and BARRIER_USED:
+				velocity.y = 50.0
+				GROUNDED = false
+				SPINNING = true
+				SPINLOCK = true
+			BARRIER_USED = false
 			slope_normal = ground_ray.get_collision_normal()
 			
 			#WIP: Apply velocity to ground (slope) speed

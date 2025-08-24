@@ -1,7 +1,7 @@
 extends Area3D
 
 @export  var item: String = "10 Rings"
-@onready var item_sound = sfx_destroy
+@onready var item_sound : AudioStream
 
 # Models
 @onready var normal_model: MeshInstance3D = $ModelNormal
@@ -9,12 +9,14 @@ extends Area3D
 @onready var explosion:    Node3D = $Explosion
 # Collision & Sound
 #@onready var collision: CollisionShape3D = $StaticBody3D/CollisionShape3D
-@onready var audio_player: AudioStreamPlayer3D = $AudioPlayer
-@onready var audio_player2: AudioStreamPlayer3D = $AudioPlayer2
+@onready var BreakSound: AudioStreamPlayer3D = $BreakSound
+@onready var ItemSound: AudioStreamPlayer3D = $ItemSound
 
-@export var sfx_destroy:    AudioStream
 @export var sfx_ring:       AudioStream
 @export var sfx_barrier:    AudioStream
+@export var sfx_water_barrier:    AudioStream
+@export var sfx_thunder_barrier:    AudioStream
+@export var sfx_fire_barrier:    AudioStream
 @export var sfx_extra_life: AudioStream
 
 @export var target_name: StringName = &"Player"
@@ -47,17 +49,36 @@ func _on_body_entered(body: Node) -> void:
 				Global.Score += 250
 				item_sound = sfx_barrier
 				body.BARRIER = true
+				body.BARRIER_TYPE = "Normal"
 				pass
-			"Extra Life":
-				Global.Score += 500
-				item_sound = sfx_extra_life
-				Global.Lives += 1
+			"Water Barrier":
+				Global.Score += 250
+				item_sound = sfx_water_barrier
+				body.BARRIER = true
+				body.BARRIER_TYPE = "Water"
+				pass
+			"Thunder Barrier":
+				Global.Score += 250
+				item_sound = sfx_thunder_barrier
+				body.BARRIER = true
+				body.BARRIER_TYPE = "Thunder"
+				pass
+			"Fire Barrier":
+				Global.Score += 250
+				item_sound = sfx_fire_barrier
+				body.BARRIER = true
+				body.BARRIER_TYPE = "Fire"
 				pass
 			"Invincibility":
 				Global.Score += 250
 				item_sound = sfx_ring
 				#body.IFRAMES = 1000
 				# TODO: Invincibility Stars, sparkles, and music
+				pass
+			"Extra Life":
+				Global.Score += 500
+				item_sound = sfx_extra_life
+				Global.Lives += 1
 				pass
 		
 		# ==== MONITOR BREAK LOGIC ====
@@ -74,7 +95,7 @@ func _on_body_entered(body: Node) -> void:
 		body.velocity.y = -body.velocity.y
 
 		# Play break SFX
-		Global.play_sfx(audio_player, sfx_destroy)
+		BreakSound.play()
 		
 		if item_sound:
-			Global.play_sfx(audio_player2, item_sound)
+			Global.play_sfx(ItemSound, item_sound)

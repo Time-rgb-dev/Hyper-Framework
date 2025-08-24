@@ -1,0 +1,19 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3 uid="uid://c6gdda43vy5u4"]
+
+[ext_resource type="Texture2D" uid="uid://0rkrw2wimhix" path="res://objects/Common/Barrier/fire_gradient.tres" id="1_5o3hh"]
+
+[resource]
+transparency = 1
+depth_draw_mode = 1
+albedo_color = Color(1, 1, 1, 0.47451)
+albedo_texture = ExtResource("1_5o3hh")
+metallic_specular = 0.0
+roughness = 0.0
+emission_enabled = true
+emission = Color(1, 0.436333, 0.11, 1)
+emission_energy_multiplier = 1.63
+rim = 0.3
+rim_tint = 0.3
+subsurf_scatter_enabled = true
+subsurf_scatter_strength = 0.4
+refraction_scale = 1.0

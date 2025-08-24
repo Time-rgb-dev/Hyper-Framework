@@ -1,7 +1,7 @@
 [gd_scene load_steps=8 format=3 uid="uid://bim3f8qwcsoxc"]
 
 [ext_resource type="Script" uid="uid://bqydjtm730a7l" path="res://objects/Common/Spring/Spring.gd" id="1_2gukh"]
-[ext_resource type="ArrayMesh" uid="uid://ek305ok4ktt0" path="res://Assets/objects/Springs/model_spring.obj" id="2_wjy60"]
+[ext_resource type="ArrayMesh" uid="uid://ek305ok4ktt0" path="res://assets/objects/Springs/model_spring.obj" id="2_wjy60"]
 [ext_resource type="AudioStream" uid="uid://x36gs1hx3jiw" path="res://sounds/objects/sfxSpring.wav" id="4_5085u"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2pimc"]
