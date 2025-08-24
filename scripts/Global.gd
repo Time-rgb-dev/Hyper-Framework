@@ -13,10 +13,12 @@ extends Node
 @export var BUTTON_SELECT: StringName = &"input_select"
 
 # Audio Play function
-func play_sfx(sfx_player: AudioStreamPlayer3D, sfx: AudioStream) -> void:
+func play_sfx(sfx_player: AudioStreamPlayer3D, sfx: AudioStream, pitch: float = 1) -> void:
 	if sfx:
 		sfx_player.stream = sfx
+		sfx_player.pitch_scale = pitch
 		sfx_player.play()
+		sfx_player.pitch_scale = 1
 
 # Pause function
 	if Input.is_action_just_pressed(BUTTON_START):

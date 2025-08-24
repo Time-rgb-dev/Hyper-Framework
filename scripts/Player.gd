@@ -231,8 +231,10 @@ func process_animations() -> void:
 				anim_player.play("SonicMain/AnimSpin")
 				#var spin_speed_scale = lerpf(0.5, 1.0, clampf(abs_gsp / 60.0, 0.0, 1.0))
 				anim_player.speed_scale = 1.0 #spin_speed_scale
-				running_dust.visible = true
-				spintrail.visible = true
+				if abs_gsp > 40:
+					running_dust.visible = true
+				if abs_gsp > 60:
+					spintrail.visible = true
 			elif abs_gsp > 115:
 				anim_player.play("SonicMain/AnimPeelout")
 				var peelout_speed_scale = lerpf(0.5, 2.0, clampf(abs_gsp / 120.0, 0.0, 1.0))
@@ -448,14 +450,15 @@ func _physics_process(delta: float) -> void:
 					if not SPINDASHING:
 						SPINNING = true
 						SPINDASHING = true
-						Global.play_sfx(audio_player, sfx_charge)
+						Global.play_sfx(audio_player, sfx_charge, (1.0 + spindash_charge / 6))
+						# base charge, to make releasing not send you extremely slow
 						spindash_charge = 25.0
 					
 					if has_input:
 						rotate_toward_direction(model_default, last_cam_input_dir, delta * 3, 10.0)
 					if SPINDASHTYPE == 0:
 						if Input.is_action_just_pressed(BUTTON_JUMP):
-							Global.play_sfx(audio_player, sfx_charge)
+							Global.play_sfx(audio_player, sfx_charge, (1.0 + spindash_charge / 6))
 							spindash_charge = clampf(spindash_charge + (SPINDASH_MAX / 6), 0, SPINDASH_MAX)
 						
 					elif SPINDASHTYPE == 1:
@@ -481,6 +484,9 @@ func _physics_process(delta: float) -> void:
 				ROLLING = true
 				Global.play_sfx(audio_player, sfx_release)
 		
+		if SPINDASHING:
+			add_debug_info("Spindash Charge: " + readable_float(spindash_charge / 6 )+ "/6")
+			
 		#STEP 3: Slope factors
 		
 		add_debug_info("Slope Normal " + readable_vector(slope_normal))
@@ -689,7 +695,9 @@ func _physics_process(delta: float) -> void:
 			if Input.is_action_pressed(BUTTON_JUMP):
 								# Start charging Drop Dash if holding jump mid-air
 				DROPDASHING = true
+				add_debug_info("DROPDASHING")
 				dropdash_charge = clampf(dropdash_charge + DROPDASH_CHARGE_RATE * delta, 0, DROPDASH_MAX)
+				add_debug_info("Dropdash Charge: " + readable_float(dropdash_charge))
 			else:
 				# If released before landing, cancel Drop Dash
 				if not Input.is_action_pressed(BUTTON_JUMP):

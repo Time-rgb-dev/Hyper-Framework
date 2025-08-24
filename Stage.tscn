@@ -1,7 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://e1geu1s85v7h"]
-
-[ext_resource type="PackedScene" uid="uid://depkq6ebpq4yo" path="res://gui/Hud.tscn" id="1_4ubfd"]
-
-[node name="Stage" type="Node3D"]
-
-[node name="Hud" parent="." instance=ExtResource("1_4ubfd")]
