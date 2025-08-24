@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bn7xp6ckci087"
-path.s3tc="res://.godot/imported/Sonic v2 tex.png-3b11af47cfae502cdc7980fe9fd694e2.s3tc.ctex"
-path.etc2="res://.godot/imported/Sonic v2 tex.png-3b11af47cfae502cdc7980fe9fd694e2.etc2.ctex"
+path.s3tc="res://.godot/imported/Sonic v2 tex.png-1d9b6863faaa5f2f3e6cabb2842416e1.s3tc.ctex"
+path.etc2="res://.godot/imported/Sonic v2 tex.png-1d9b6863faaa5f2f3e6cabb2842416e1.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -12,8 +12,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/objects/Player/sonicmodel/Sonic v2 tex.png"
-dest_files=["res://.godot/imported/Sonic v2 tex.png-3b11af47cfae502cdc7980fe9fd694e2.s3tc.ctex", "res://.godot/imported/Sonic v2 tex.png-3b11af47cfae502cdc7980fe9fd694e2.etc2.ctex"]
+source_file="res://Assets/objects/Player/sonicmodel/Sonic v2 tex.png"
+dest_files=["res://.godot/imported/Sonic v2 tex.png-1d9b6863faaa5f2f3e6cabb2842416e1.s3tc.ctex", "res://.godot/imported/Sonic v2 tex.png-1d9b6863faaa5f2f3e6cabb2842416e1.etc2.ctex"]
 
 [params]
 

@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dmoxdv1bb1y3f"
-path="res://.godot/imported/spr_itembox_extralife.png-3487aa5759d34d55294aab6b99e6def8.ctex"
+path="res://.godot/imported/spr_itembox_extralife.png-3f2db2e560e10035a76c9d9dbee14845.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/objects/Itembox/spr_itembox_extralife.png"
-dest_files=["res://.godot/imported/spr_itembox_extralife.png-3487aa5759d34d55294aab6b99e6def8.ctex"]
+source_file="res://Assets/objects/Itembox/spr_itembox_extralife.png"
+dest_files=["res://.godot/imported/spr_itembox_extralife.png-3f2db2e560e10035a76c9d9dbee14845.ctex"]
 
 [params]
 
