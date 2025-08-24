@@ -14,6 +14,10 @@ config/name="Hyper Framework"
 config/description="A 3D Sonic framework aiming to be classic-accurate"
 run/main_scene="uid://c6jtj12pxnykp"
 config/features=PackedStringArray("4.4", "GL Compatibility")
+boot_splash/bg_color=Color(0, 0, 0, 1)
+boot_splash/fullsize=false
+boot_splash/use_filter=false
+boot_splash/image="uid://cgyj0k3ru3n33"
 config/icon="res://icon.svg"
 
 [autoload]
