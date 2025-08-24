@@ -1,4 +1,4 @@
-[gd_scene load_steps=37 format=4 uid="uid://f4cgq5ixf1rn"]
+[gd_scene load_steps=36 format=4 uid="uid://f4cgq5ixf1rn"]
 
 [ext_resource type="Script" uid="uid://cunhx41o7se2j" path="res://scripts/Player.gd" id="1_5wody"]
 [ext_resource type="Texture2D" uid="uid://bn7xp6ckci087" path="res://assets/objects/Player/sonicmodel/Sonic v2 tex.png" id="2_e80uo"]
@@ -7,7 +7,6 @@
 [ext_resource type="AudioStream" uid="uid://sqkpmueovlsv" path="res://sounds/player/sfxRoll.wav" id="3_0dv3x"]
 [ext_resource type="AudioStream" uid="uid://e0do13jb4a6k" path="res://sounds/player/sfxCharge.wav" id="4_0webf"]
 [ext_resource type="AnimationLibrary" uid="uid://3s1ydgfoo3ep" path="res://assets/objects/Player/sonicmodel/animations/SonicAnimations.tres" id="4_cxr5p"]
-[ext_resource type="Script" uid="uid://dfv0t1yihdwy6" path="res://scripts/CameraRig.gd" id="4_ga12v"]
 [ext_resource type="AudioStream" uid="uid://bc148lsfn3k5n" path="res://sounds/player/sfxRelease.ogg" id="5_xhp5d"]
 [ext_resource type="AudioStream" uid="uid://c6pvqtwwbaekj" path="res://sounds/player/sfxSkid.wav" id="6_uxc30"]
 [ext_resource type="AudioStream" uid="uid://dotrhetiq7obn" path="res://sounds/player/sfxHurt.wav" id="7_itxcm"]
@@ -1733,19 +1732,8 @@ text = "Default Text"
 label_settings = SubResource("LabelSettings_b20bf")
 horizontal_alignment = 2
 
-[node name="CameraRig" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.996195, -0.0871557, 0, 0.0871557, 0.996195, 0, 1.232, 6.639)
-script = ExtResource("4_ga12v")
-target_path = NodePath("..")
-follow_distance = 6.0
-vertical_offset = 2.0
-tilt_lerp_speed = 5.975
-
-[node name="CameraPivot" type="Node3D" parent="CameraRig"]
-transform = Transform3D(1, 0, 0, 0, 0.987688, 0.156434, 0, -0.156434, 0.987688, 0, 0, 0)
-visible = false
-
-[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPivot"]
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.997564, 0.0697561, 0, -0.0697561, 0.997564, 0, 1.232, 6.639)
 doppler_tracking = 1
 current = true
 fov = 85.0

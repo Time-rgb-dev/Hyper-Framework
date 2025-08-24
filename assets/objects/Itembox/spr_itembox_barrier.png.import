@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dn5u3ffpyg35g"
-path="res://.godot/imported/spr_itembox_barrier.png-59e1d2630186adb63259b7be4dfc8113.ctex"
+path="res://.godot/imported/spr_itembox_barrier.png-f5e8a8e23cbac9455aa51bd3029ff89e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/objects/Itembox/spr_itembox_barrier.png"
-dest_files=["res://.godot/imported/spr_itembox_barrier.png-59e1d2630186adb63259b7be4dfc8113.ctex"]
+source_file="res://assets/objects/Itembox/spr_itembox_barrier.png"
+dest_files=["res://.godot/imported/spr_itembox_barrier.png-f5e8a8e23cbac9455aa51bd3029ff89e.ctex"]
 
 [params]
 

@@ -9,7 +9,7 @@ extends CharacterBody3D
 @onready var running_dust = $CollisionShape3D2/DefaultModel/GeneralSkeleton/RunningDust
 ##The base for the player's rotation. This will be rotated to align to slopes.
 @onready var model_rotation_base: Node3D = $CollisionShape3D2
-@onready var camera:Node3D = $CameraRig
+@onready var camera:Camera3D = $Camera3D
 @onready var ground_ray: RayCast3D = $GroundRay
 @onready var debug_label: Label = $"CanvasLayer/Label"
 
@@ -284,34 +284,36 @@ func process_rotations(delta: float) -> void:
 			
 			# Camera
 			
-			var camera_movement: Vector2 = Input.get_vector(
-				CAM_BUTTON_LEFT, CAM_BUTTON_RIGHT, 
-				CAM_BUTTON_DOWN, CAM_BUTTON_UP
-			)
-			
-			var reset_pressed: bool = Input.is_action_pressed(CAM_BUTTON_RESET)
-			
-			if reset_pressed:
+			if Input.is_action_pressed(CAM_BUTTON_RESET):
 				camera.global_transform = global_transform * camera_default_transform
-			elif not camera_movement.is_zero_approx():
-				#manual camera movement; this overrides the "auto" cam, which is later
-				camera_movement *= CAM_SENSITIVITY
-				#rotate the camera around the player without actually rotating the parent node in the process
-				
+			else:
 				var manual_cam_transform: Transform3D = Transform3D.IDENTITY
-				#x transform
-				manual_cam_transform = manual_cam_transform.rotated_local(GRAVITY_NORMAL, camera_movement.x)
-				#y transform
-				manual_cam_transform = manual_cam_transform.rotated_local(camera.global_basis.x.normalized(), camera_movement.y)
+				
+				var camera_movement: Vector2 = Input.get_vector(
+					CAM_BUTTON_LEFT, CAM_BUTTON_RIGHT, 
+					CAM_BUTTON_DOWN, CAM_BUTTON_UP
+				)
+				
+				if not camera_movement.is_zero_approx():
+					#manual camera movement; this overrides the "auto" cam, which is later
+					camera_movement *= CAM_SENSITIVITY
+					#rotate the camera around the player without actually rotating the parent node in the process
+					
+					
+					#x transform
+					manual_cam_transform = manual_cam_transform.rotated_local(GRAVITY_NORMAL, camera_movement.x)
+					#y transform
+					manual_cam_transform = manual_cam_transform.rotated_local(camera.global_basis.x.normalized(), camera_movement.y)
+				
+				if not velocity.is_zero_approx():
+					#TODO: "auto" cam that follows the player, gradually moving to be behind the player at 
+					#all times
+					
+
+					#manual_cam_transform = manual_cam_transform.interpolate_with(model_rotation_base.transform, CAM_AUTO_ADJUST_SPEED)
+					pass
 				
 				camera.global_transform = global_transform * manual_cam_transform * camera.transform
-			
-			
-			if not velocity.is_zero_approx():
-				#TODO: "auto" cam that follows the player, gradually moving to be behind the player at 
-				#all times
-				
-				camera.global_transform = (global_transform * camera.transform).interpolate_with(model_rotation_base.global_transform, CAM_AUTO_ADJUST_SPEED)
 			
 			tilt_to_normal(camera, delta, 3.0, 20.0, -1.5)
 			

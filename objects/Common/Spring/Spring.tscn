@@ -1,0 +1,30 @@
+[gd_scene load_steps=7 format=3 uid="uid://bim3f8qwcsoxc"]
+
+[ext_resource type="Script" uid="uid://bqydjtm730a7l" path="res://objects/Common/Spring/Spring.gd" id="1_2gukh"]
+[ext_resource type="ArrayMesh" uid="uid://ek305ok4ktt0" path="res://assets/objects/Springs/model_spring.obj" id="2_wjy60"]
+[ext_resource type="Material" uid="uid://c2cadvcje8s6v" path="res://objects/Common/Itembox/Metal.tres" id="3_1knyq"]
+[ext_resource type="AudioStream" uid="uid://x36gs1hx3jiw" path="res://sounds/objects/sfxSpring.wav" id="4_5085u"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7565i"]
+albedo_color = Color(0, 0, 1, 1)
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_tipjx"]
+
+[node name="Spring" type="Area3D"]
+script = ExtResource("1_2gukh")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.7675, 0, 0, 0, 0.7675, 0, 0, 0, 0.7675, 0.00176429, 0.329178, 0.00367381)
+mesh = ExtResource("2_wjy60")
+skeleton = NodePath("../CollisionShape3D")
+surface_material_override/0 = ExtResource("3_1knyq")
+surface_material_override/1 = ExtResource("3_1knyq")
+surface_material_override/2 = SubResource("StandardMaterial3D_7565i")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(3.07, 0, 0, 0, 3.07, 0, 0, 0, 3.07, 0, 1.61, 0)
+shape = SubResource("SphereShape3D_tipjx")
+
+[node name="AudioPlayer" type="AudioStreamPlayer3D" parent="."]
+stream = ExtResource("4_5085u")
+attenuation_filter_db = 0.0
