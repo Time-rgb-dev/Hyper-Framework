@@ -17,7 +17,7 @@ extends Area3D
 @export var sfx_barrier:    AudioStream
 @export var sfx_extra_life: AudioStream
 
-@export var target_name: String = "Player"
+@export var target_name: StringName = &"Player"
 
 func _ready() -> void:
 	# Broken model should be invisible at start

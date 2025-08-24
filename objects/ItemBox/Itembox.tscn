@@ -1,7 +1,7 @@
 [gd_scene load_steps=18 format=3 uid="uid://h5kqn3bag3fi"]
 
 [ext_resource type="ArrayMesh" uid="uid://dsr1vmk03uq0y" path="res://assets/objects/Itembox/model_monitor.obj" id="1_tcly0"]
-[ext_resource type="Script" uid="uid://bssfhqycklo6t" path="res://objects/Itembox/Itembox_Event.gd" id="1_wa8fq"]
+[ext_resource type="Script" uid="uid://bssfhqycklo6t" path="res://objects/ItemBox/Itembox_Event.gd" id="1_wa8fq"]
 [ext_resource type="AudioStream" uid="uid://dm22fahcu0pd4" path="res://sounds/objects/sfxDestroy.wav" id="2_5npl4"]
 [ext_resource type="ArrayMesh" uid="uid://pkvprly3neoo" path="res://assets/objects/Itembox/model_monitor_broken.obj" id="2_lsljx"]
 [ext_resource type="AudioStream" uid="uid://bm8st6c8kho8s" path="res://sounds/objects/sfxRing.wav" id="2_vd4o8"]

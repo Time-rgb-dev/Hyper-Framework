@@ -18,6 +18,9 @@ extends Node
 var start_time:int
 var sec_accum:float
 
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
 func _physics_process(delta: float) -> void:
 	if TIME_ENABLED:
 		
@@ -42,8 +45,4 @@ func play_sfx(sfx_player: AudioStreamPlayer3D, sfx: AudioStream) -> void:
 
 # Pause function
 	if Input.is_action_just_pressed(BUTTON_START):
-		if process_mode:
-			set_process(false)
-		else:
-			set_process(true)
-	
+		get_tree().paused = not get_tree().paused #toggle

@@ -15,6 +15,7 @@ extends CharacterBody3D
 
 # Sound Player
 @onready var audio_player: AudioStreamPlayer3D = $AudioPlayer
+
 # Sounds
 @export var sfx_jump: AudioStream
 @export var sfx_roll: AudioStream
@@ -38,7 +39,8 @@ extends CharacterBody3D
 
 ## GRAVITY
 @export var GRAVITY: float = 85.0
-@export var GRAVITY_NORMAL: Vector3 = Vector3.UP ##The normal (up direction) of gravity
+##The normal (up direction) of gravity
+@export var GRAVITY_NORMAL: Vector3 = Vector3.UP 
 
 ## SLOPES
 @export var NORMAL_SLOPE_POWER: float = 100.0
@@ -69,12 +71,19 @@ extends CharacterBody3D
 @export var BUTTON_DOWN: StringName = &"input_back"
 
 @export var DEBUG_DOWNHILL: StringName = &"input_x"
-@export var DEBUG_UPHILL:StringName = "input_y"
+@export var DEBUG_UPHILL:StringName = &"input_y"
 
 @export var SPACE_SCALE: float = 0.01
-@export var CAM_SENSITIVITY:Vector2 = Vector2(0.1, 0.1)
 
-var TIME = Global.TIME
+@export_group("Camera", "CAM_")
+@export var CAM_SENSITIVITY:Vector2 = Vector2(0.1, 0.1)
+@export var CAM_AUTO_ADJUST_SPEED:float = 0.1
+@export var CAM_BUTTON_LEFT:StringName = &"input_cursor_left"
+@export var CAM_BUTTON_RIGHT:StringName = &"input_cursor_right"
+@export var CAM_BUTTON_UP:StringName = &"input_cursor_up"
+@export var CAM_BUTTON_DOWN:StringName = &"input_cursor_down"
+@export var CAM_BUTTON_RESET:StringName = &"input_rb"
+
 
 # State
 var gsp: float = 0.0:
@@ -274,11 +283,11 @@ func process_rotations(delta: float) -> void:
 			# Camera
 			
 			var camera_movement: Vector2 = Input.get_vector(
-				"input_cursor_left", "input_cursor_right", 
-				"input_cursor_down", "input_cursor_up"
+				CAM_BUTTON_LEFT, CAM_BUTTON_RIGHT, 
+				CAM_BUTTON_DOWN, CAM_BUTTON_UP
 			)
 			
-			var reset_pressed: bool = Input.is_action_pressed("input_rb")
+			var reset_pressed: bool = Input.is_action_pressed(CAM_BUTTON_RESET)
 			
 			if reset_pressed:
 				camera.global_transform = global_transform * camera_default_transform
@@ -294,11 +303,13 @@ func process_rotations(delta: float) -> void:
 				manual_cam_transform = manual_cam_transform.rotated_local(camera.global_basis.x.normalized(), camera_movement.y)
 				
 				camera.global_transform = global_transform * manual_cam_transform * camera.transform
-			else:
+			
+			
+			if not velocity.is_zero_approx():
 				#TODO: "auto" cam that follows the player, gradually moving to be behind the player at 
 				#all times
 				
-				camera.global_transform = global_transform * camera.transform
+				camera.global_transform = (global_transform * camera.transform).interpolate_with(model_rotation_base.global_transform, CAM_AUTO_ADJUST_SPEED)
 			
 			tilt_to_normal(camera, delta, 3.0, 20.0, -1.5)
 			
@@ -515,7 +526,7 @@ func _physics_process(delta: float) -> void:
 				if slope_dir_dot < 0 or Input.is_action_pressed(DEBUG_DOWNHILL): # Downhill
 					add_debug_info("RUNNING DOWNHILL")
 					gsp += slope_angle * downhill_factor * delta
-				elif slope_dir_dot > 0 or Input.is_action_pressed(DEBUG_DOWNHILL): # Uphill
+				elif slope_dir_dot > 0 or Input.is_action_pressed(DEBUG_UPHILL): # Uphill
 					add_debug_info("RUNNING UP THAT HILL") #kudos if you pick up the ref :trol:
 					gsp -= slope_angle * uphill_factor * delta
 			
@@ -533,8 +544,6 @@ func _physics_process(delta: float) -> void:
 			SPINLOCK = true
 			SKIDDING = false
 			Global.play_sfx(audio_player, sfx_jump)
-		
-		
 		
 		#STEP 5: Direction input factors, friction/deceleration
 		

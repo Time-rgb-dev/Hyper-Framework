@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cunhx41o7se2j" path="res://scripts/Player.gd" id="1_5wody"]
 [ext_resource type="Texture2D" uid="uid://bn7xp6ckci087" path="res://assets/objects/Player/sonicmodel/Sonic v2 tex.png" id="2_e80uo"]
-[ext_resource type="ArrayMesh" uid="uid://b7ojfi2nvoq1y" path="res://assets/objects/Player/spinball.tres" id="2_mp747"]
+[ext_resource type="ArrayMesh" uid="uid://b7ojfi2nvoq1y" path="res://Assets/objects/Player/spinball.tres" id="2_mp747"]
 [ext_resource type="AudioStream" uid="uid://dsnp5dxkojv75" path="res://sounds/player/sfxJump.wav" id="2_p3ixb"]
 [ext_resource type="AudioStream" uid="uid://sqkpmueovlsv" path="res://sounds/player/sfxRoll.wav" id="3_0dv3x"]
 [ext_resource type="AudioStream" uid="uid://e0do13jb4a6k" path="res://sounds/player/sfxCharge.wav" id="4_0webf"]
