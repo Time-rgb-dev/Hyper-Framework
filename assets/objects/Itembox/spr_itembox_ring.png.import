@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ce4gr1c4juooa"
-path.s3tc="res://.godot/imported/spr_itembox_ring.png-d77ad6ccd919d2f710322a89c1204259.s3tc.ctex"
-path.etc2="res://.godot/imported/spr_itembox_ring.png-d77ad6ccd919d2f710322a89c1204259.etc2.ctex"
+path.s3tc="res://.godot/imported/spr_itembox_ring.png-6941a0fe76bfed1454ea1665ac212dcb.s3tc.ctex"
+path.etc2="res://.godot/imported/spr_itembox_ring.png-6941a0fe76bfed1454ea1665ac212dcb.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -12,8 +12,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/objects/Itembox/spr_itembox_ring.png"
-dest_files=["res://.godot/imported/spr_itembox_ring.png-d77ad6ccd919d2f710322a89c1204259.s3tc.ctex", "res://.godot/imported/spr_itembox_ring.png-d77ad6ccd919d2f710322a89c1204259.etc2.ctex"]
+source_file="res://Assets/objects/Itembox/spr_itembox_ring.png"
+dest_files=["res://.godot/imported/spr_itembox_ring.png-6941a0fe76bfed1454ea1665ac212dcb.s3tc.ctex", "res://.godot/imported/spr_itembox_ring.png-6941a0fe76bfed1454ea1665ac212dcb.etc2.ctex"]
 
 [params]
 
