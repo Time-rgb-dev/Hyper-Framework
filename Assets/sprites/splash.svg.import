@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://jawigykrh7kq"
-path="res://.godot/imported/spr_itembox_invincible.png-82ca391eefd173e1e6a2e75d8d3bf6f1.ctex"
+uid="uid://ccbkder6fxnbu"
+path="res://.godot/imported/splash.svg-1a03545787654a8579e343b89ca591b3.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/objects/Itembox/spr_itembox_invincible.png"
-dest_files=["res://.godot/imported/spr_itembox_invincible.png-82ca391eefd173e1e6a2e75d8d3bf6f1.ctex"]
+source_file="res://Assets/sprites/splash.svg"
+dest_files=["res://.godot/imported/splash.svg-1a03545787654a8579e343b89ca591b3.ctex"]
 
 [params]
 
@@ -32,3 +32,6 @@ process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
 detect_3d/compress_to=1
+svg/scale=1.0
+editor/scale_with_editor_scale=false
+editor/convert_colors_with_editor_theme=false

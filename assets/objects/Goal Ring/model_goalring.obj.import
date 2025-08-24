@@ -4,14 +4,14 @@ importer="wavefront_obj"
 importer_version=1
 type="Mesh"
 uid="uid://dpod5ou5bxhj3"
-path="res://.godot/imported/model_goalring.obj-b55a231fa36b4db61767ac6f97f80a7d.mesh"
+path="res://.godot/imported/model_goalring.obj-25fe27c755317d14c4b36d51bdd64946.mesh"
 
 [deps]
 
-files=["res://.godot/imported/model_goalring.obj-b55a231fa36b4db61767ac6f97f80a7d.mesh"]
+files=["res://.godot/imported/model_goalring.obj-25fe27c755317d14c4b36d51bdd64946.mesh"]
 
-source_file="res://assets/objects/Goal Ring/model_goalring.obj"
-dest_files=["res://.godot/imported/model_goalring.obj-b55a231fa36b4db61767ac6f97f80a7d.mesh", "res://.godot/imported/model_goalring.obj-b55a231fa36b4db61767ac6f97f80a7d.mesh"]
+source_file="res://Assets/objects/Goal Ring/model_goalring.obj"
+dest_files=["res://.godot/imported/model_goalring.obj-25fe27c755317d14c4b36d51bdd64946.mesh", "res://.godot/imported/model_goalring.obj-25fe27c755317d14c4b36d51bdd64946.mesh"]
 
 [params]
 

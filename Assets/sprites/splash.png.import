@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://jawigykrh7kq"
-path="res://.godot/imported/spr_itembox_invincible.png-82ca391eefd173e1e6a2e75d8d3bf6f1.ctex"
+uid="uid://cgyj0k3ru3n33"
+path="res://.godot/imported/splash.png-4a2b088ea2833eb7edc6a55fd395bf57.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/objects/Itembox/spr_itembox_invincible.png"
-dest_files=["res://.godot/imported/spr_itembox_invincible.png-82ca391eefd173e1e6a2e75d8d3bf6f1.ctex"]
+source_file="res://Assets/sprites/splash.png"
+dest_files=["res://.godot/imported/splash.png-4a2b088ea2833eb7edc6a55fd395bf57.ctex"]
 
 [params]
 

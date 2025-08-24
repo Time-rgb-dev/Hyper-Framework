@@ -4,14 +4,14 @@ importer="wavefront_obj"
 importer_version=1
 type="Mesh"
 uid="uid://bowxgadd13n38"
-path="res://.godot/imported/model_signpost.obj-8730e7d5ef505f4cb2ebcac9628bba08.mesh"
+path="res://.godot/imported/model_signpost.obj-19614035b24cfc3a6dc285935aa0b46e.mesh"
 
 [deps]
 
-files=["res://.godot/imported/model_signpost.obj-8730e7d5ef505f4cb2ebcac9628bba08.mesh"]
+files=["res://.godot/imported/model_signpost.obj-19614035b24cfc3a6dc285935aa0b46e.mesh"]
 
-source_file="res://assets/objects/Signpost/model_signpost.obj"
-dest_files=["res://.godot/imported/model_signpost.obj-8730e7d5ef505f4cb2ebcac9628bba08.mesh", "res://.godot/imported/model_signpost.obj-8730e7d5ef505f4cb2ebcac9628bba08.mesh"]
+source_file="res://Assets/objects/Signpost/model_signpost.obj"
+dest_files=["res://.godot/imported/model_signpost.obj-19614035b24cfc3a6dc285935aa0b46e.mesh", "res://.godot/imported/model_signpost.obj-19614035b24cfc3a6dc285935aa0b46e.mesh"]
 
 [params]
 

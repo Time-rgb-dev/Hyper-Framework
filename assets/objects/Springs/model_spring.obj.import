@@ -4,14 +4,14 @@ importer="wavefront_obj"
 importer_version=1
 type="Mesh"
 uid="uid://ek305ok4ktt0"
-path="res://.godot/imported/model_spring.obj-ba530360868cdb6fafc3ddec2370df0a.mesh"
+path="res://.godot/imported/model_spring.obj-a550a565c442bcf8c828a7a5f08033d4.mesh"
 
 [deps]
 
-files=["res://.godot/imported/model_spring.obj-ba530360868cdb6fafc3ddec2370df0a.mesh"]
+files=["res://.godot/imported/model_spring.obj-a550a565c442bcf8c828a7a5f08033d4.mesh"]
 
-source_file="res://assets/objects/Springs/model_spring.obj"
-dest_files=["res://.godot/imported/model_spring.obj-ba530360868cdb6fafc3ddec2370df0a.mesh", "res://.godot/imported/model_spring.obj-ba530360868cdb6fafc3ddec2370df0a.mesh"]
+source_file="res://Assets/objects/Springs/model_spring.obj"
+dest_files=["res://.godot/imported/model_spring.obj-a550a565c442bcf8c828a7a5f08033d4.mesh", "res://.godot/imported/model_spring.obj-a550a565c442bcf8c828a7a5f08033d4.mesh"]
 
 [params]
 
