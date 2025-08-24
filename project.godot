@@ -22,7 +22,8 @@ Global="*res://scripts/Global.gd"
 
 [display]
 
-window/stretch/mode="canvas_items"
+window/stretch/mode="viewport"
+window/stretch/aspect="keep_height"
 window/defaults/default_clear_color=Color(0, 0.29689, 0.573042, 1)
 
 [input]

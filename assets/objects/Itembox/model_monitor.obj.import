@@ -4,14 +4,14 @@ importer="wavefront_obj"
 importer_version=1
 type="Mesh"
 uid="uid://dsr1vmk03uq0y"
-path="res://.godot/imported/model_monitor.obj-f37da4b99d54829cb7338487d951d887.mesh"
+path="res://.godot/imported/model_monitor.obj-40f5bd335c0240810c105ce6db62dbba.mesh"
 
 [deps]
 
-files=["res://.godot/imported/model_monitor.obj-f37da4b99d54829cb7338487d951d887.mesh"]
+files=["res://.godot/imported/model_monitor.obj-40f5bd335c0240810c105ce6db62dbba.mesh"]
 
-source_file="res://assets/objects/Itembox/model_monitor.obj"
-dest_files=["res://.godot/imported/model_monitor.obj-f37da4b99d54829cb7338487d951d887.mesh", "res://.godot/imported/model_monitor.obj-f37da4b99d54829cb7338487d951d887.mesh"]
+source_file="res://Assets/objects/Itembox/model_monitor.obj"
+dest_files=["res://.godot/imported/model_monitor.obj-40f5bd335c0240810c105ce6db62dbba.mesh", "res://.godot/imported/model_monitor.obj-40f5bd335c0240810c105ce6db62dbba.mesh"]
 
 [params]
 

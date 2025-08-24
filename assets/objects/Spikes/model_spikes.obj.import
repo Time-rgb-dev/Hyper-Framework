@@ -4,14 +4,14 @@ importer="wavefront_obj"
 importer_version=1
 type="Mesh"
 uid="uid://qmaogrt3nlkx"
-path="res://.godot/imported/model_spikes.obj-05e027fe93d02880ba8ce831251acd91.mesh"
+path="res://.godot/imported/model_spikes.obj-882b3408fef9b85438b37818dd76899b.mesh"
 
 [deps]
 
-files=["res://.godot/imported/model_spikes.obj-05e027fe93d02880ba8ce831251acd91.mesh"]
+files=["res://.godot/imported/model_spikes.obj-882b3408fef9b85438b37818dd76899b.mesh"]
 
-source_file="res://assets/objects/Spikes/model_spikes.obj"
-dest_files=["res://.godot/imported/model_spikes.obj-05e027fe93d02880ba8ce831251acd91.mesh", "res://.godot/imported/model_spikes.obj-05e027fe93d02880ba8ce831251acd91.mesh"]
+source_file="res://Assets/objects/Spikes/model_spikes.obj"
+dest_files=["res://.godot/imported/model_spikes.obj-882b3408fef9b85438b37818dd76899b.mesh", "res://.godot/imported/model_spikes.obj-882b3408fef9b85438b37818dd76899b.mesh"]
 
 [params]
 
