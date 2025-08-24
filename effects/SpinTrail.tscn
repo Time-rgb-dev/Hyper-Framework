@@ -1,0 +1,53 @@
+[gd_scene load_steps=9 format=3 uid="uid://bigqqfpvnenjl"]
+
+[ext_resource type="Material" uid="uid://cmuahviblclei" path="res://effects/SpinTrail.tres" id="1_vg7f4"]
+
+[sub_resource type="Curve" id="Curve_gtiym"]
+_data = [Vector2(0, 0.376831), 0.0, 0.0, 0, 0]
+point_count = 1
+
+[sub_resource type="CurveTexture" id="CurveTexture_nfeme"]
+curve = SubResource("Curve_gtiym")
+
+[sub_resource type="Curve" id="Curve_gbmtf"]
+_data = [Vector2(0, 0.939414), 0.0, 1.02323, 0, 0, Vector2(0.986842, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_1ejoc"]
+curve = SubResource("Curve_gbmtf")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_kdegg"]
+particle_flag_align_y = true
+direction = Vector3(0, 0, -1)
+spread = 0.0
+flatness = 1.0
+initial_velocity_min = 1.0
+initial_velocity_max = 4.0
+gravity = Vector3(0, 0, 0)
+damping_min = 0.115
+damping_max = 2.155
+scale_min = 0.7
+scale_max = 0.7
+scale_curve = SubResource("CurveTexture_1ejoc")
+scale_over_velocity_max = 1.35
+color = Color(0.0999999, 0, 1, 0.454902)
+alpha_curve = SubResource("CurveTexture_nfeme")
+
+[sub_resource type="Curve" id="Curve_o1shp"]
+_data = [Vector2(0, 0), 0.0, 0.292301, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="RibbonTrailMesh" id="RibbonTrailMesh_1ejoc"]
+material = ExtResource("1_vg7f4")
+sections = 15
+section_length = 0.5
+curve = SubResource("Curve_o1shp")
+
+[node name="SpinTrail" type="GPUParticles3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.12125, -1.37006, -5.19879)
+gi_mode = 0
+amount = 5
+speed_scale = 50.0
+fixed_fps = 60
+process_material = SubResource("ParticleProcessMaterial_kdegg")
+draw_pass_1 = SubResource("RibbonTrailMesh_1ejoc")

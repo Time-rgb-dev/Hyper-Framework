@@ -2,11 +2,13 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dvnfmlvg0elv1"
+uid="uid://dw2yi8o846lbp"
 path="res://.godot/imported/flowerpatch_small_albedo000.png-90817a9962ee23e699251188e69bbf62.ctex"
 metadata={
 "vram_texture": false
 }
+
+generator_parameters={}
 
 [deps]
 
@@ -21,7 +23,7 @@ compress/lossy_quality=0.7
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

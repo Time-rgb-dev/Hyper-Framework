@@ -1,0 +1,28 @@
+[gd_scene load_steps=5 format=3 uid="uid://c5ohyetgjc760"]
+
+[ext_resource type="Script" uid="uid://dty550tvs8sc0" path="res://objects/Common/Rings/RingEvent.gd" id="1_vb2gu"]
+[ext_resource type="ArrayMesh" uid="uid://tljw0kjf0bbc" path="res://assets/objects/Ring/model_rings.obj" id="2_ep706"]
+[ext_resource type="AudioStream" uid="uid://bm8st6c8kho8s" path="res://sounds/objects/sfxRing.wav" id="2_i2c1i"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pcvr4"]
+radius = 0.9
+
+[node name="Ring" type="Area3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0763502, -0.0299907, -0.0793273)
+script = ExtResource("1_vb2gu")
+sfx_ring = ExtResource("2_i2c1i")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_pcvr4")
+debug_color = Color(0, 0.595, 0.7, 1)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="CollisionShape3D"]
+transform = Transform3D(0.7, 0, 0, 0, 0.7, 0, 0, 0, 0.7, 0, 0, 0)
+mesh = ExtResource("2_ep706")
+
+[node name="AudioPlayer" type="AudioStreamPlayer3D" parent="."]
+visible = false
+max_db = 1.0
+max_distance = 500.0
+area_mask = 255
+attenuation_filter_db = 0.0

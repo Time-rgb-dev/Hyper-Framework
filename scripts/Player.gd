@@ -199,66 +199,68 @@ func process_animations() -> void:
 			if SKIDDING:
 				anim_player.play("SonicMain/AnimSkid1")
 				anim_player.speed_scale = 1.0  # Default run speed
-				running_dust.emitting = false
-				spintrail.emitting = false
+				running_dust.visible = false
+				spintrail.visible = false
 			elif not GROUNDED:
 				if SPINNING or (JUMPING and abs_gsp < 1.0):
 					SPINNING = true  # Ensure spinning visual even if jumping from idle
 					anim_player.play("SonicMain/AnimSpin")
 					anim_player.speed_scale = 1.0
-					running_dust.emitting = false
-					spintrail.emitting = false
+					running_dust.visible = false
+					spintrail.visible = false
 				else:
 					if velocity.y > 3.0:
 						anim_player.play("SonicMain/AnimAirUp")
 						anim_player.speed_scale = 1.0
-						running_dust.emitting = false
-						spintrail.emitting = false
+						running_dust.visible = false
+						spintrail.visible = false
 					elif velocity.y < -4.0:
 						anim_player.play("SonicMain/AnimAirDown")
 						anim_player.speed_scale = 1.0
-						running_dust.emitting = false
-						spintrail.emitting = false
+						running_dust.visible = false
+						spintrail.visible = false
 					else:
 						anim_player.play("SonicMain/AnimAirMid")
 						anim_player.speed_scale = 1.0
-						running_dust.emitting = false
-						spintrail.emitting = false
+						running_dust.visible = false
+						spintrail.visible = false
 			elif CROUCHING:
 				if not SPINDASHING:
 					anim_player.play("SonicMain/AnimCrouch")
 					anim_player.speed_scale = 1.0  # Default run speed
-					running_dust.emitting = false
-					spintrail.emitting = false
+					running_dust.visible = false
+					spintrail.visible = false
 				else:
 					anim_player.play("SonicMain/AnimSpin")
 					anim_player.speed_scale = 2.0  # Default run speed
-					running_dust.emitting = true
-					spintrail.emitting = false
+					running_dust.visible = true
+					spintrail.visible = false
 					
 			elif SPINNING:
 				anim_player.play("SonicMain/AnimSpin")
 				#var spin_speed_scale = lerpf(0.5, 1.0, clampf(abs_gsp / 60.0, 0.0, 1.0))
 				anim_player.speed_scale = 1.0 #spin_speed_scale
-				running_dust.emitting = true
-				spintrail.emitting = true
+				if abs_gsp > 40:
+					running_dust.visible = true
+				if abs_gsp > 60:
+					spintrail.visible = true
 			elif abs_gsp > 115:
 				anim_player.play("SonicMain/AnimPeelout")
 				var peelout_speed_scale = lerpf(0.5, 2.0, clampf(abs_gsp / 120.0, 0.0, 1.0))
 				anim_player.speed_scale = peelout_speed_scale
-				running_dust.emitting = true
-				spintrail.emitting = false
+				running_dust.visible = true
+				spintrail.visible = false
 			elif abs_gsp > 35:
 				anim_player.play("SonicMain/AnimRun")
 			# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
 				var run_speed_scale = lerpf(0.0, 2.0, clampf(abs_gsp / 65.0, 0.0, 1.0))
 				anim_player.speed_scale = run_speed_scale
-				running_dust.emitting = true
-				spintrail.emitting = false
+				running_dust.visible = true
+				spintrail.visible = false
 			elif abs_gsp > 1:
 				anim_player.play("SonicMain/AnimJog")
-				running_dust.emitting = false
-				spintrail.emitting = false
+				running_dust.visible = false
+				spintrail.visible = false
 
 				# Scale between 0.1 (slow) and 1.0 (fast) as speed increases
 				anim_player.speed_scale = 1.0  # Default run speed
@@ -267,12 +269,12 @@ func process_animations() -> void:
 			else:
 				anim_player.play("SonicMain/AnimIdle")
 				anim_player.speed_scale = 1.0
-				running_dust.emitting = false
+				running_dust.visible = false
 				spintrail.visible = false
 		else:
 				anim_player.play("SonicMain/AnimHurt")
 				anim_player.speed_scale = 1.0  # Default run speed
-				running_dust.emitting = false
+				running_dust.visible = false
 				spintrail.visible = false
 			
 func process_rotations(delta: float) -> void:
@@ -354,16 +356,17 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 	velocity.x = move_dir.x * gsp
 	velocity.z = move_dir.z * gsp
 
-
 func player_damage(fire : bool, lightning : bool, spikes : bool, instakill : bool):
 	if not HURT and !IFRAMES:
-		# Launch upward by modifying vertical velocity
 		velocity.y = 40.0
 		gsp = -30.0
 		velocity.x = 0
 		velocity.z = 0
 		GROUNDED = false
 		SPINNING = false
+		SKIDDING = false
+		DROPDASHING = false
+		SPINDASHING = false
 		JUMPING = false
 		HURT = true
 		IFRAMES = 200.0
@@ -458,14 +461,15 @@ func _physics_process(delta: float) -> void:
 					if not SPINDASHING:
 						SPINNING = true
 						SPINDASHING = true
-						Global.play_sfx(audio_player, sfx_charge)
+						Global.play_sfx(audio_player, sfx_charge, (1.0 + spindash_charge / 6))
+						# base charge, to make releasing not send you extremely slow
 						spindash_charge = 25.0
 					
 					if has_input:
 						rotate_toward_direction(model_default, last_cam_input_dir, delta * 3, 10.0)
 					if SPINDASHTYPE == 0:
 						if Input.is_action_just_pressed(BUTTON_JUMP):
-							Global.play_sfx(audio_player, sfx_charge)
+							Global.play_sfx(audio_player, sfx_charge, (1.0 + spindash_charge / 6))
 							spindash_charge = clampf(spindash_charge + (SPINDASH_MAX / 6), 0, SPINDASH_MAX)
 						
 					elif SPINDASHTYPE == 1:
@@ -491,6 +495,9 @@ func _physics_process(delta: float) -> void:
 				ROLLING = true
 				Global.play_sfx(audio_player, sfx_release)
 		
+		if SPINDASHING:
+			add_debug_info("Spindash Charge: " + readable_float(spindash_charge / 6 )+ "/6")
+			
 		#STEP 3: Slope factors
 		
 		add_debug_info("Slope Normal " + readable_vector(slope_normal))
@@ -697,7 +704,9 @@ func _physics_process(delta: float) -> void:
 			if Input.is_action_pressed(BUTTON_JUMP):
 								# Start charging Drop Dash if holding jump mid-air
 				DROPDASHING = true
+				add_debug_info("DROPDASHING")
 				dropdash_charge = clampf(dropdash_charge + DROPDASH_CHARGE_RATE * delta, 0, DROPDASH_MAX)
+				add_debug_info("Dropdash Charge: " + readable_float(dropdash_charge))
 			else:
 				# If released before landing, cancel Drop Dash
 				if not Input.is_action_pressed(BUTTON_JUMP):
@@ -764,10 +773,11 @@ func _physics_process(delta: float) -> void:
 			#WIP: Apply velocity to ground (slope) speed
 			gsp += (1.0 - slope_mag_dot) * velocity.length()
 			
+			# Dropdash Checks
 			if DROPDASHING:
-				if dropdash_charge > 49.0:
-					# Release Drop Dash like a mini spindash
+				if dropdash_charge > 30.0:
 					gsp = 80.0
+					#camera.camera_delay(50)
 					ROLLING = true
 					SPINNING = true
 					CROUCHING = false

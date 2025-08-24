@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3 uid="uid://e1geu1s85v7h"]
+
+[ext_resource type="PackedScene" uid="uid://depkq6ebpq4yo" path="res://gui/Hud.tscn" id="1_4ubfd"]
+[ext_resource type="Script" uid="uid://dc46rmtajhoch" path="res://objects/Framework/Stage.gd" id="1_gsjio"]
+
+[node name="Stage" type="Node3D"]
+script = ExtResource("1_gsjio")
+
+[node name="Hud" parent="." instance=ExtResource("1_4ubfd")]
+
+[node name="StageMusic" type="AudioStreamPlayer3D" parent="."]
+attenuation_filter_db = 0.0
