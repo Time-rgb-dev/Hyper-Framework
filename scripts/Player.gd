@@ -7,6 +7,7 @@ extends CharacterBody3D
 @onready var spinball_mesh = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SonicFSpin
 @onready var spintrail = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SpinTrail
 @onready var running_dust = $CollisionShape3D2/DefaultModel/GeneralSkeleton/RunningDust
+@onready var spark_effect = $CollisionShape3D2/DefaultModel/GeneralSkeleton/SparkExplosion
 ##The base for the player's rotation. This will be rotated to align to slopes.
 @onready var model_rotation_base: Node3D = $CollisionShape3D2
 @onready var camera:Camera3D = $Camera3D
@@ -61,9 +62,21 @@ extends CharacterBody3D
 
 @export var DROPDASH_CHARGE_RATE = 100.0
 @export var DROPDASH_MAX = 100.0
+## CHARACTER
+
+
+enum CHARS {
+	SONIC,
+	TAILS,
+	KNUCKLES
+};
+
+@export var CHARACTER : CHARS = CHARS.SONIC
 
 ## GAMEPLAY TOGGLES
 @export var DROPDASH_ENABLED : bool = true
+@export var FLIGHT_CANCEL_ENABLED : bool = true
+
 @export var ROLLTYPE = 0 # [0 = CLASSIC STYLED / TOGGLE] [1 = GT & RASCAL STYLED / HOLD]
 @export var SPINDASHTYPE = 0 # [0 = CROUCH AND PRESS A TO REV, RELEASE CROUCH] [1 = HOLD RT AND A TO REV, RELEASE JUMP] [2 = HOLD CROUCH TO REV, RELEASE CROUCH]
 
@@ -118,6 +131,9 @@ var SKIDDING: bool = false
 var HURT : bool = false
 var DEAD : bool = false
 
+var FLYING = false
+var GLIDING = false
+
 var SPINLOCK = false
 var roll_toggle_lock: bool = false
 var prev_spinning: bool = false
@@ -127,7 +143,6 @@ var sec_accum: float = 0.0
 
 var BARRIER: bool = false
 var BARRIER_TYPE: String = "None"
-
 var BARRIER_USED: bool = false
 
 var spindash_charge: float = 0.0
@@ -311,7 +326,7 @@ func process_rotations(delta: float) -> void:
 					#x transform
 					manual_cam_transform = manual_cam_transform.rotated_local(GRAVITY_NORMAL, camera_movement.x)
 					#y transform
-					manual_cam_transform = manual_cam_transform.rotated_local(camera.global_basis.x.normalized(), camera_movement.y)
+					#manual_cam_transform = manual_cam_transform.rotated_local(camera.global_basis.x.normalized(), camera_movement.y)
 				
 				if not velocity.is_zero_approx():
 					#TODO: "auto" cam that follows the player, gradually moving to be behind the player at 
@@ -376,6 +391,7 @@ func player_damage(fire : bool, lightning : bool, spikes : bool, instakill : boo
 		SPINNING = false
 		SKIDDING = false
 		DROPDASHING = false
+		FLYING = false	
 		SPINDASHING = false
 		JUMPING = false
 		HURT = true
@@ -395,6 +411,7 @@ func player_damage(fire : bool, lightning : bool, spikes : bool, instakill : boo
 
 func _ready() -> void:
 	camera_default_transform = camera.transform
+	spark_effect.visible = true
 
 func _physics_process(delta: float) -> void:
 	debug_label.text = ""
@@ -476,7 +493,7 @@ func _physics_process(delta: float) -> void:
 						# base charge, to make releasing not send you extremely slow
 						spindash_charge = 25.0
 					
-					if has_input:
+					
 						rotate_toward_direction(model_default, last_cam_input_dir, delta * 3, 10.0)
 					if SPINDASHTYPE == 0:
 						if Input.is_action_just_pressed(BUTTON_JUMP):
@@ -700,6 +717,8 @@ func _physics_process(delta: float) -> void:
 				# velocity.y = 0
 	
 	else: #not GROUNDED
+		if SKIDDING:
+			SKIDDING = false
 		#STEP 1: check for jump button release
 		if JUMPING and not Input.is_action_pressed(BUTTON_JUMP):
 			if velocity.y > 0:
@@ -708,37 +727,88 @@ func _physics_process(delta: float) -> void:
 		
 		add_debug_info("Jumping: " + str(JUMPING))
 		
-		# STEP 2: check or Dropdash Charge
-		if SPINLOCK and SPINNING and not JUMPING and DROPDASH_ENABLED and not BARRIER:
-			if Input.is_action_just_pressed(BUTTON_JUMP):
-				Global.play_sfx(audio_player, sfx_dropdash)
-			if Input.is_action_pressed(BUTTON_JUMP):
-								# Start charging Drop Dash if holding jump mid-air
-				DROPDASHING = true
-				add_debug_info("DROPDASHING")
-				dropdash_charge = clampf(dropdash_charge + DROPDASH_CHARGE_RATE * delta, 0, DROPDASH_MAX)
-				add_debug_info("Dropdash Charge: " + readable_float(dropdash_charge))
-			else:
-				# If released before landing, cancel Drop Dash
-				if not Input.is_action_pressed(BUTTON_JUMP):
-					DROPDASHING = false
-					dropdash_charge = 0.0
+		# STEP 2: check for Dropdash Charge
+		if CHARACTER == CHARS.SONIC:
+			if DROPDASH_ENABLED and SPINLOCK and SPINNING and not JUMPING and not BARRIER_USED:
+				if Input.is_action_just_pressed(BUTTON_JUMP):
+					Global.play_sfx(audio_player, sfx_dropdash)
+				if Input.is_action_pressed(BUTTON_JUMP):
+									# Start charging Drop Dash if holding jump mid-air
+					DROPDASHING = true
+					add_debug_info("DROPDASHING")
+					dropdash_charge = clampf(dropdash_charge + DROPDASH_CHARGE_RATE * delta, 0, DROPDASH_MAX)
+					add_debug_info("Dropdash Charge: " + readable_float(dropdash_charge))
+				else:
+					# If released before landing, cancel Drop Dash
+					if not Input.is_action_pressed(BUTTON_JUMP):
+						DROPDASHING = false
+						dropdash_charge = 0.0
 		
+		
+		# Check for Tails flight
+		if CHARACTER == CHARS.TAILS and SPINLOCK and SPINNING and not JUMPING and not FLYING and not BARRIER_USED:
+			if Input.is_action_just_pressed(BUTTON_JUMP):
+				SPINLOCK = false
+				SPINNING = false
+				GRAVITY = 30.0
+				velocity.y = 0.0
+				FLYING = true
+		if FLYING:
+			if Input.is_action_just_pressed(BUTTON_JUMP):
+				SPINLOCK = false
+				SPINNING = false
+				GRAVITY = 30.0
+				velocity.y += 6.5
+				clamp(velocity.y, -20.00, 50.0)
+			if FLIGHT_CANCEL_ENABLED and Input.is_action_just_pressed(BUTTON_ROLL):
+				SPINLOCK = true
+				SPINNING = true
+				FLYING = false
+				BARRIER_USED = true
+				GRAVITY = 85.0
+				velocity.y = -15.0
+			add_debug_info("FLYING")
+		
+		
+		## Check for Knuckles gliding
+		if CHARACTER == CHARS.KNUCKLES and SPINLOCK and SPINNING and not JUMPING:
+			if Input.is_action_pressed(BUTTON_JUMP):
+				gsp = 60.0
+				velocity.y = -2.5
+				GRAVITY = 0.0
+				GLIDING = true
+		# Check for glide release
+		if GLIDING:
+			if not Input.is_action_pressed(BUTTON_JUMP):
+				GLIDING = false
+				SPINLOCK = false
+				SPINNING = false
+				gsp *= 0.50
+				GRAVITY = 85.0
+				velocity.y = -15.0
+			add_debug_info("GLIDING")
+		# Check for Barrier Abilities
 		if BARRIER:
 			if SPINLOCK and SPINNING and not JUMPING and not BARRIER_USED:
 					if Input.is_action_just_pressed(BUTTON_ROLL):
 						match BARRIER_TYPE:
 							"Normal":
-								abs_gsp =0.0
+								gsp = 0
 								velocity.y = 0.0
+								SPINLOCK = false
 								SPINNING = false
+								Global.play_sfx(audio_player, sfx_hurt)
 							"Water":
 								abs_gsp = 0.0
 								velocity.y = -70.0
+								Global.play_sfx(audio_player, sfx_waterbarrier)
 							"Thunder":
 								velocity.y = 50.0
-								
-							"Fire":gsp = 75.0 
+								Global.play_sfx(audio_player, sfx_thunderbarrier)
+								spark_effect.emitting = true
+							"Fire":
+								gsp = 75.0 
+								Global.play_sfx(audio_player, sfx_firebarrier)
 						BARRIER_USED = true
 								
 		#STEP 2: Super Sonic checks (not gonna worry about that)
@@ -790,14 +860,25 @@ func _physics_process(delta: float) -> void:
 		
 		if ground_ray.is_colliding() and get_slide_collision_count() > 0:
 			
+			
 			GROUNDED = true
-			ROLLING = false
-			JUMPING = false
+			
+			# Reset Variables on Landing
+			ROLLING  = false
+			JUMPING  = false
 			SPINLOCK = false
 			SPINNING = false
-			HURT = false
+			HURT     = false
+			
+			FLYING   = false
+			GLIDING = false
+			
+			GRAVITY = 85.0
+			
+			# Water Barrier Bounce
 			if BARRIER_TYPE == "Water" and BARRIER_USED:
-				velocity.y = 50.0
+				velocity.y = 60.0
+				gsp = 0.0 	
 				GROUNDED = false
 				SPINNING = true
 				SPINLOCK = true
@@ -808,18 +889,19 @@ func _physics_process(delta: float) -> void:
 			gsp += (1.0 - slope_mag_dot) * velocity.length()
 			
 			# Dropdash Checks
-			if DROPDASHING:
-				if dropdash_charge > 30.0:
-					gsp = 80.0
-					#camera.camera_delay(50)
-					ROLLING = true
-					SPINNING = true
-					CROUCHING = false
-					Global.play_sfx(audio_player, sfx_release)
-				
-				# Reset Drop Dash state
-				DROPDASHING = false
-				dropdash_charge = 0.0
+			if CHARACTER == CHARS.SONIC:
+				if DROPDASHING:
+					if dropdash_charge > 30.0:
+						gsp = 80.0
+						#camera.camera_delay(50)
+						ROLLING = true
+						SPINNING = true
+						CROUCHING = false
+						Global.play_sfx(audio_player, sfx_release)
+					
+					# Reset Drop Dash state
+					DROPDASHING = false
+					dropdash_charge = 0.0
 	
 	if has_input:
 		last_cam_input_dir = cam_input_dir

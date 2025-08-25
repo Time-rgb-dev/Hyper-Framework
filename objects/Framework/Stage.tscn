@@ -7,6 +7,7 @@
 script = ExtResource("1_gsjio")
 
 [node name="Hud" parent="." instance=ExtResource("1_4ubfd")]
+process_mode = 1
 
 [node name="StageMusic" type="AudioStreamPlayer3D" parent="."]
 panning_strength = 0.0

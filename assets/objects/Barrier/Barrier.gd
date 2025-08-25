@@ -1,6 +1,6 @@
 extends MeshInstance3D
 
-const barrier_material_index: int = 4
+const barrier_material_index: int = 1
 
 @export var player : CharacterBody3D
 @export var spin_speed = 125.0

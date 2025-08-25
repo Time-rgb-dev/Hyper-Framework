@@ -1,6 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://d3vorkucxyey7"]
 
 [ext_resource type="Script" uid="uid://dsfnb0e34eg1a" path="res://assets/objects/Barrier/Barrier.gd" id="1_82enl"]
+[ext_resource type="PackedScene" uid="uid://dafx1gdkqx2yg" path="res://effects/SparkExplosion.tscn" id="2_2u1qu"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_lia7k"]
 radius = 1.2
@@ -8,23 +9,8 @@ height = 2.4
 radial_segments = 8
 rings = 4
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_82enl"]
-transparency = 1
-depth_draw_mode = 1
-albedo_color = Color(0, 0.522, 0.87, 0.392157)
-metallic_specular = 0.18
-roughness = 0.0
-emission_enabled = true
-emission = Color(0.0873378, 0.46907, 0.768108, 1)
-emission_energy_multiplier = 0.26
-rim = 0.3
-rim_tint = 0.3
-subsurf_scatter_enabled = true
-subsurf_scatter_strength = 0.4
-refraction_enabled = true
-refraction_scale = 0.35
-
 [node name="Barrier" type="MeshInstance3D"]
 mesh = SubResource("SphereMesh_lia7k")
-surface_material_override/0 = SubResource("StandardMaterial3D_82enl")
 script = ExtResource("1_82enl")
+
+[node name="Explosion" parent="." instance=ExtResource("2_2u1qu")]

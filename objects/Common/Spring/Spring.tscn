@@ -17,6 +17,7 @@ radius = 0.493122
 
 [node name="Spring" type="Area3D"]
 script = ExtResource("1_2gukh")
+CarryMomentum = null
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 transform = Transform3D(0.7675, 0, 0, 0, 0.7675, 0, 0, 0, 0.7675, 0, 0, 0)
@@ -28,6 +29,7 @@ surface_material_override/2 = SubResource("StandardMaterial3D_gmsg3")
 
 [node name="AudioPlayer" type="AudioStreamPlayer3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.26893, 0, -0.871646)
+visible = false
 stream = ExtResource("4_5085u")
 attenuation_filter_db = 0.0
 

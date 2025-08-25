@@ -1,0 +1,53 @@
+[gd_scene load_steps=8 format=3 uid="uid://dhh506hjwoxqx"]
+
+[sub_resource type="Curve" id="Curve_q366h"]
+_data = [Vector2(0.243902, 1), 0.0, 0.0, 0, 0, Vector2(0.587583, 0), -8.06062, 0.0, 0, 0]
+point_count = 2
+metadata/_snap_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_q366h"]
+curve = SubResource("Curve_q366h")
+
+[sub_resource type="Curve" id="Curve_oxoqp"]
+_data = [Vector2(0.0164474, 0.0479362), 0.0, 0.0, 0, 0, Vector2(0.4102, 0.280201), 0.0, 0.0, 0, 0, Vector2(0.605321, 0), -0.742869, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_0qtq4"]
+curve = SubResource("Curve_oxoqp")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_3m0pf"]
+direction = Vector3(0, -1, 0)
+spread = 180.0
+initial_velocity_min = 2.0
+initial_velocity_max = 4.0
+gravity = Vector3(0, 7.5, 0)
+scale_max = 1.5
+scale_curve = SubResource("CurveTexture_0qtq4")
+alpha_curve = SubResource("CurveTexture_q366h")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_myk2p"]
+transparency = 1
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.67, 0.9835, 1, 0.415686)
+metallic = 0.3
+metallic_specular = 1.0
+roughness = 0.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_xi2vc"]
+material = SubResource("StandardMaterial3D_myk2p")
+radial_segments = 8
+rings = 4
+
+[node name="Explosion" type="Node3D"]
+
+[node name="Bubbles" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.00103125, 0, 0)
+emitting = false
+amount = 32
+lifetime = 2.0
+one_shot = true
+explosiveness = 1.0
+randomness = 1.0
+fixed_fps = 60
+process_material = SubResource("ParticleProcessMaterial_3m0pf")
+draw_pass_1 = SubResource("SphereMesh_xi2vc")

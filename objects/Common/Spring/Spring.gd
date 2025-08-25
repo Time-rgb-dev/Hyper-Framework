@@ -13,15 +13,20 @@ const data_table: Dictionary = {
 	&"Yellow": {
 		&"Color": Color.YELLOW,
 		&"Launch": 85.0
+	},
+	&"Blue": {
+		&"Color": Color.BLUE,
+		&"Launch": 65.0
 	}
 }
 
-const map := [&"Custom", &"Red", &"Yellow"]
+const map := [&"Custom", &"Red", &"Yellow", &"Blue"]
 
 enum Type {
 	CUSTOM,
 	RED,
-	YELLOW
+	YELLOW,
+	BLUE
 };
 
 # Sound Player
@@ -40,6 +45,7 @@ enum Type {
 	set(new_color):
 		custom_spring_color = new_color
 		setup()
+@export var CarryMomentum: bool = false
 
 var launch_speed:float
 var dummy:Node3D
@@ -68,10 +74,12 @@ func _on_body_entered(body: Node) -> void:
 	if body.name == target_name:
 		# Launch upward by modifying vertical velocity
 		body.velocity.y = launch_speed
-		body.gsp = 0.0
+		if not CarryMomentum:
+			body.gsp = 0.0
 		body.velocity.x = 0
 		body.velocity.z = 0
 		body.GROUNDED = false
+		body.SPINLOCK = false
 		body.SPINNING = false
 		body.JUMPING = false
 		audio_player.play()
