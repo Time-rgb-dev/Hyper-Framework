@@ -68,7 +68,9 @@ extends CharacterBody3D
 enum CHARS {
 	SONIC,
 	TAILS,
-	KNUCKLES
+	KNUCKLES,
+	AMY,
+	METAL
 };
 
 @export var CHARACTER : CHARS = CHARS.SONIC
@@ -382,31 +384,35 @@ func apply_steering(input_dir: Vector3, delta: float) -> void:
 	velocity.z = move_dir.z * gsp
 
 func player_damage(fire : bool, lightning : bool, spikes : bool, instakill : bool):
-	if not HURT and !IFRAMES:
-		velocity.y = 30.0
-		gsp = -20.0
-		velocity.x = 0
-		velocity.z = 0
-		GROUNDED = false
-		SPINNING = false
-		SKIDDING = false
-		DROPDASHING = false
-		FLYING = false	
-		SPINDASHING = false
-		JUMPING = false
-		HURT = true
-		IFRAMES = 200.0
-		Global.play_sfx(audio_player, sfx_hurt)
-		if !BARRIER:
-			if Global.Rings:
-				Global.Rings = 0
-				Global.play_sfx(audio_player, sfx_ringloss)
+	if fire and BARRIER_TYPE == "Fire" or lightning and BARRIER_TYPE == "Thunder":
+		return
+	else:
+		if not HURT and !IFRAMES:
+			velocity.y = 30.0
+			gsp = -20.0
+			velocity.x = 0
+			velocity.z = 0
+			GROUNDED = false
+			SPINNING = false
+			SKIDDING = false
+			DROPDASHING = false
+			FLYING = false	
+			SPINDASHING = false
+			JUMPING = false
+			HURT = true
+			IFRAMES = 200.0
+			Global.play_sfx(audio_player, sfx_hurt)
+			if !BARRIER:
+				if Global.Rings:
+					Global.Rings = 0
+					Global.play_sfx(audio_player, sfx_ringloss)
+				else:
+					#Kill player
+					DEAD = true
+					Global.Lives -= 1
 			else:
-				#Kill player
-				DEAD = true
-		else:
-			BARRIER = false
-			BARRIER_TYPE = "None"
+				BARRIER = false
+				BARRIER_TYPE = "None"
 
 
 func _ready() -> void:

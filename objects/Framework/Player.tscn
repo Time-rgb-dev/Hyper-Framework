@@ -1784,7 +1784,7 @@ label_settings = SubResource("LabelSettings_b20bf")
 horizontal_alignment = 2
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.930769, 0.365608, 0, -0.365608, 0.930769, 0, 1.90324, 6.639)
+transform = Transform3D(1, 0, 0, 0, 0.997564, 0.0697561, 0, -0.0697561, 0.997564, 0, 1.86577, 6.639)
 doppler_tracking = 1
 current = true
 fov = 85.0

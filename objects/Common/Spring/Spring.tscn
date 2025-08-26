@@ -17,7 +17,6 @@ radius = 0.493122
 
 [node name="Spring" type="Area3D"]
 script = ExtResource("1_2gukh")
-CarryMomentum = null
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 transform = Transform3D(0.7675, 0, 0, 0, 0.7675, 0, 0, 0, 0.7675, 0, 0, 0)
