@@ -32,13 +32,18 @@ extends CharacterBody3D
 @export var sfx_thunderbarrier: AudioStream
 @export var sfx_firebarrier: AudioStream
 
+@export var sfx_flight: AudioStream
+@export var sfx_slide: AudioStream
+@export var sfx_land: AudioStream
+@export var sfx_amy_jump: AudioStream
+
 # Constants
 @export var ACC: float = 0.30895 # 85% Classic Accurate
 @export var AIR_ACC: float = 0.35895
 @export var DEC: float = 0.50
 @export var FRC: float = 0.30 # 80% Classic Accurate
 @export var SPIN_FRC: float = 0.15
-@export var MAXACC: float = 60.0
+@export var MAXACC: float = 50.0
 @export var MAXSPD: float = 200.0
 @export var JUMP_HEIGHT: float = 45.0
 
@@ -146,6 +151,8 @@ var sec_accum: float = 0.0
 var BARRIER: bool = false
 var BARRIER_TYPE: String = "None"
 var BARRIER_USED: bool = false
+
+var DOUBLE_JUMP_USED: bool = false
 
 var spindash_charge: float = 0.0
 var dropdash_charge: float = 0.0
@@ -409,7 +416,7 @@ func player_damage(fire : bool, lightning : bool, spikes : bool, instakill : boo
 				else:
 					#Kill player
 					DEAD = true
-					Global.Lives -= 1
+					Global.Lives -= 1 
 			else:
 				BARRIER = false
 				BARRIER_TYPE = "None"
@@ -519,6 +526,7 @@ func _physics_process(delta: float) -> void:
 					move_dir = dash_dir
 					gsp = spindash_charge * SPINDASH_RELEASE_MULT
 					ROLLING = true
+					##camera.camera_delay_frames sing  50
 					CROUCHING = false
 				else:
 					# Fallback if no input direction
@@ -527,6 +535,7 @@ func _physics_process(delta: float) -> void:
 				SPINDASHING = false
 				spindash_charge = 0.0
 				ROLLING = true
+				#camera.camera_delay_frames = 50
 				Global.play_sfx(audio_player, sfx_release)
 		
 		if SPINDASHING:
@@ -734,7 +743,7 @@ func _physics_process(delta: float) -> void:
 		add_debug_info("Jumping: " + str(JUMPING))
 		
 		# STEP 2: check for Dropdash Charge
-		if CHARACTER == CHARS.SONIC:
+		if CHARACTER == CHARS.SONIC or CHARS.AMY and DOUBLE_JUMP_USED:
 			if DROPDASH_ENABLED and SPINLOCK and SPINNING and not JUMPING and not BARRIER_USED:
 				if Input.is_action_just_pressed(BUTTON_JUMP):
 					Global.play_sfx(audio_player, sfx_dropdash)
@@ -779,7 +788,7 @@ func _physics_process(delta: float) -> void:
 		## Check for Knuckles gliding
 		if CHARACTER == CHARS.KNUCKLES and SPINLOCK and SPINNING and not JUMPING:
 			if Input.is_action_pressed(BUTTON_JUMP):
-				gsp = 60.0
+				gsp += ACC
 				velocity.y = -2.5
 				GRAVITY = 0.0
 				GLIDING = true
@@ -793,17 +802,36 @@ func _physics_process(delta: float) -> void:
 				GRAVITY = 85.0
 				velocity.y = -15.0
 			add_debug_info("GLIDING")
+			
+		## Check for Amy Hammer Jump
+		if CHARACTER == CHARS.AMY and SPINLOCK and SPINNING and not JUMPING and not BARRIER_USED and not DOUBLE_JUMP_USED:
+			if Input.is_action_just_pressed(BUTTON_JUMP):
+				velocity.y = 45.0
+				Global.play_sfx(audio_player, sfx_amy_jump)
+				SPINLOCK = true
+				SPINNING = true
+				DOUBLE_JUMP_USED = true
+		
+		## Check for Metal Sonic
+		if CHARACTER == CHARS.METAL and SPINLOCK and SPINNING and not JUMPING:
+			if Input.is_action_just_pressed(BUTTON_JUMP):
+				SPINLOCK = false
+				gsp = 90.0 
+				velocity.y = -50.0
+				Global.play_sfx(audio_player, sfx_amy_jump)
+		
+		
 		# Check for Barrier Abilities
 		if BARRIER:
 			if SPINLOCK and SPINNING and not JUMPING and not BARRIER_USED:
 					if Input.is_action_just_pressed(BUTTON_ROLL):
 						match BARRIER_TYPE:
 							"Normal":
-								gsp = 0
+								gsp *= 0.20
 								velocity.y = 0.0
 								SPINLOCK = false
 								SPINNING = false
-								Global.play_sfx(audio_player, sfx_hurt)
+								Global.play_sfx(audio_player, sfx_skid)
 							"Water":
 								abs_gsp = 0.0
 								velocity.y = -70.0
@@ -814,6 +842,7 @@ func _physics_process(delta: float) -> void:
 								spark_effect.emitting = true
 							"Fire":
 								gsp = 75.0 
+								velocity.y = 0.0
 								Global.play_sfx(audio_player, sfx_firebarrier)
 						BARRIER_USED = true
 								
@@ -879,6 +908,8 @@ func _physics_process(delta: float) -> void:
 			FLYING   = false
 			GLIDING = false
 			
+			DOUBLE_JUMP_USED = false
+			
 			GRAVITY = 85.0
 			
 			# Water Barrier Bounce
@@ -894,12 +925,12 @@ func _physics_process(delta: float) -> void:
 			#WIP: Apply velocity to ground (slope) speed
 			gsp += (1.0 - slope_mag_dot) * velocity.length()
 			
-			# Dropdash Checks
-			if CHARACTER == CHARS.SONIC:
+		# Dropdash Checks
+			if CHARACTER == CHARS.SONIC or CHARS.AMY:
 				if DROPDASHING:
 					if dropdash_charge > 30.0:
 						gsp = 80.0
-						#camera.camera_delay(50)
+						#camera.camera_delay_frames = 60
 						ROLLING = true
 						SPINNING = true
 						CROUCHING = false

@@ -5,13 +5,13 @@
 [resource]
 transparency = 1
 depth_draw_mode = 1
-albedo_color = Color(1, 1, 1, 0.47451)
+albedo_color = Color(1, 0, 0, 0.619608)
 albedo_texture = ExtResource("1_5o3hh")
-metallic_specular = 0.0
-roughness = 0.0
+metallic = 1.0
+metallic_specular = 1.0
 emission_enabled = true
-emission = Color(1, 0.436333, 0.11, 1)
-emission_energy_multiplier = 1.63
+emission = Color(1, 0.11, 0.11, 1)
+emission_energy_multiplier = 0.97
 rim = 0.3
 rim_tint = 0.3
 subsurf_scatter_enabled = true

@@ -3,13 +3,12 @@
 [resource]
 transparency = 1
 depth_draw_mode = 1
-albedo_color = Color(0, 0.522, 0.87, 0.392157)
-metallic = 0.9
+albedo_color = Color(0, 0.6, 1, 0.541176)
 metallic_specular = 0.18
 roughness = 0.0
 emission_enabled = true
 emission = Color(0.0873378, 0.46907, 0.768108, 1)
-emission_energy_multiplier = 0.26
+emission_energy_multiplier = 1.06
 rim = 0.3
 rim_tint = 0.3
 subsurf_scatter_enabled = true

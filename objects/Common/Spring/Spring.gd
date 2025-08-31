@@ -82,6 +82,7 @@ func _on_body_entered(body: Node) -> void:
 		body.SPINLOCK = false
 		body.SPINNING = false
 		body.JUMPING = false
+		body.HURT = false
 		audio_player.play()
 		
 		print("Spring \"", name, "\" activated for \"", body.name, "\"")

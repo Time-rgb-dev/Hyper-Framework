@@ -1,69 +1,50 @@
-extends Node3D
+extends Camera3D
 
-@export var target_path: NodePath
-@export var min_zoom_distance: float = 4.0
-@export var max_zoom_distance: float = 10.0
-@export var zoom_speed_factor: float = 0.9
-@export var follow_distance: float = 7.0
-@export var vertical_offset: float = 4.0
-@export var rotation_lerp_speed: float = 8.0
-@export var tilt_lerp_speed: float = 6.0
-@export var sensitivity: Vector2 = Vector2(0.015, 0.015)
+@export var player: CharacterBody3D
 
-@onready var camera: Camera3D = $CameraPivot/Camera3D
-@onready var pivot: Node3D = $CameraPivot
-var target: Node3D
-var yaw := 0.0
-var pitch: float = 0.0
-var current_zoom: float = 1.0
+@export var camera_delay_frames: int = 0
+@export var lerp_back_speed: float = 5.0
 
-const ROTATION_SPEED = 10.0
-const TILT_SPEED = 3.0
+var _saved_transform: Transform3D
+var _delay_active: bool = false
+var _returning: bool = false
+var _initial_relative_transform: Transform3D
 
-func _ready():
-	target = get_node_or_null(target_path)
-	if not target:
-		push_error("CameraTilt: Target node not found")
-	camera.position = Vector3(0, vertical_offset, follow_distance)
-
-func _physics_process(delta):
-	if not target:
-		return
-	
-	var player = target as CharacterBody3D
-	
-	# Follow target position
-	var follow_target_pos = player.global_transform.origin + player.up_direction * vertical_offset
-	global_position = follow_target_pos
-	
-	# Rotate camera to be behind the move direction or velocity
-	#var facing_dir = player.move_dir if player.move_dir.length() > 0.1 else player.velocity.normalized()
-	#facing_dir = (Vector3.UP).normalized()
-
-	#if facing_dir.length() > 0.01:
-		#var desired_yaw = atan2(facing_dir.x, facing_dir.z)
-		#var current_yaw = rotation.y
-		#rotation.y = lerp_angle(current_yaw, desired_yaw, delta * rotation_lerp_speed)
-
-	# Zoom based on speed
-	var speed = player.abs_gsp
-	var zoom = lerp(min_zoom_distance, max_zoom_distance, clamp(speed / player.MAXSPD, 0.0, 1.0))
-	current_zoom = lerp(current_zoom, zoom, delta * 5.0)
-
-
-func _unhandled_input(event):
-	if event is InputEventMouseMotion and Input.is_action_pressed("mouse_rotate"):
-		yaw -= event.relative.x * sensitivity.x
-		pitch = clamp(pitch - event.relative.y * sensitivity.y, deg_to_rad(-60), deg_to_rad(80))
 
 func _process(delta):
-	if not target:
+	# --- Handle camera delay ---
+	if camera_delay_frames > 0:
+		if !_delay_active:
+			_saved_transform = global_transform
+			_delay_active = true
+		camera_delay_frames -= 1
+		global_transform = _saved_transform
+		return
+	elif _delay_active:
+		_delay_active = false
+		_returning = true
+
+	# --- Return smoothly to original relative transform ---
+	if _returning:
+		var target_transform = player.global_transform * _initial_relative_transform
+
+		# Lerp origin
+		var new_origin = _saved_transform.origin.lerp(target_transform.origin, delta * lerp_back_speed)
+		# Slerp rotation
+		var new_basis = _saved_transform.basis.slerp(target_transform.basis, delta * lerp_back_speed)
+
+		global_transform = Transform3D(new_basis, new_origin)
+
+		# Stop returning when close enough
+		if new_origin.distance_to(target_transform.origin) < 0.01:
+			_returning = false
+
+		_saved_transform = global_transform
 		return
 
-	global_position = target.global_transform.origin
-
-	# Apply rotation to pivot
-	pivot.rotation = Vector3(pitch, yaw, 0)
-
-	# Optional: Make camera look at the player (if needed)
-	camera.look_at(global_position, Vector3.UP)
+	# --- Regular camera logic here ---
+	# For example, adjust FOV and tilt relative to player
+	var target_fov = 70.0
+	if player.abs_gsp >= 20.0:
+		target_fov += player.abs_gsp * 0.3
+	fov = lerp(fov, target_fov, delta * 2.5)

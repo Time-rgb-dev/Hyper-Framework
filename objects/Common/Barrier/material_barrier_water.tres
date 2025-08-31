@@ -10,11 +10,12 @@ gradient = SubResource("Gradient_qayx7")
 [resource]
 transparency = 1
 depth_draw_mode = 1
-albedo_color = Color(0.7448, 0.9604, 0.98, 0.392157)
-metallic = 0.5
-metallic_specular = 0.0
+albedo_color = Color(0.637, 0.951417, 0.98, 0.392157)
+metallic = 0.73
+metallic_specular = 1.0
 roughness = 0.0
-emission_energy_multiplier = 1.63
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 0.43
 rim = 0.0
 rim_tint = 1.0
 rim_texture = SubResource("GradientTexture1D_qv3k1")
