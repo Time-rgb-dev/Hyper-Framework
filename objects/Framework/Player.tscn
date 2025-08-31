@@ -1,4 +1,4 @@
-[gd_scene load_steps=49 format=4 uid="uid://f4cgq5ixf1rn"]
+[gd_scene load_steps=48 format=4 uid="uid://f4cgq5ixf1rn"]
 
 [ext_resource type="Script" uid="uid://cunhx41o7se2j" path="res://scripts/Player.gd" id="1_5wody"]
 [ext_resource type="Texture2D" uid="uid://bn7xp6ckci087" path="res://assets/objects/Player/sonicmodel/Sonic v2 tex.png" id="2_e80uo"]
@@ -23,7 +23,6 @@
 [ext_resource type="PackedScene" uid="uid://bdntha45684g3" path="res://effects/Running Dust.tscn" id="14_itxcm"]
 [ext_resource type="PackedScene" uid="uid://bigqqfpvnenjl" path="res://effects/SpinTrail.tscn" id="14_qo0ki"]
 [ext_resource type="Material" uid="uid://c6gdda43vy5u4" path="res://objects/Common/Barrier/material_barrier_fire.tres" id="18_lcvm5"]
-[ext_resource type="Script" uid="uid://dfv0t1yihdwy6" path="res://scripts/CameraRig.gd" id="24_wu5ke"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_e80uo"]
 margin = 1.682
@@ -1710,7 +1709,6 @@ surface_material_override/0 = SubResource("StandardMaterial3D_dtqjt")
 
 [node name="SonicFSpin" type="MeshInstance3D" parent="CollisionShape3D2/DefaultModel/GeneralSkeleton"]
 transform = Transform3D(1.25, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
-visible = false
 material_override = SubResource("StandardMaterial3D_dtqjt")
 gi_mode = 0
 mesh = ExtResource("2_mp747")
@@ -1792,4 +1790,3 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.045, 2.48342, 6.84344)
 doppler_tracking = 1
 current = true
 fov = 85.0
-script = ExtResource("24_wu5ke")

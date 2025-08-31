@@ -10,6 +10,9 @@ var _delay_active: bool = false
 var _returning: bool = false
 var _initial_relative_transform: Transform3D
 
+func _ready():
+	# Save initial transform relative to the player
+	_initial_relative_transform = player.global_transform.affine_inverse() * global_transform
 
 func _process(delta):
 	# --- Handle camera delay ---
@@ -48,3 +51,7 @@ func _process(delta):
 	if player.abs_gsp >= 20.0:
 		target_fov += player.abs_gsp * 0.3
 	fov = lerp(fov, target_fov, delta * 2.5)
+
+	# Apply tilt or other offsets on top of the original relative transform
+	global_transform = player.global_transform * _initial_relative_transform
+	var tilt_y_offset = -sin(rotation.x) * 1.0

@@ -199,6 +199,25 @@ func tilt_to_normal(object:Node3D, delta: float, tilt_speed: float, max_angle: f
 	# Smoothly apply the tilt
 	object.rotation.x = lerp_angle(object.rotation.x, -target_pitch, delta * tilt_speed)
 
+func tilt_camera_normal(object: Node3D, delta: float, tilt_speed: float, max_angle: float, pitch_mult: float) -> void:
+	var forward: Vector3 = -object.basis.z.normalized()
+	var manual_cam_transform: Transform3D = Transform3D.IDENTITY
+
+	# Determine slope in forward direction
+	var slope_forward: float = slope_normal.dot(forward)
+
+	var max_tilt: float = deg_to_rad(max_angle)
+	var target_pitch: float = clampf(slope_forward * max_tilt, -max_tilt, max_tilt)
+
+	target_pitch *= pitch_mult
+
+	var t := 1.0 - pow(0.001, delta * tilt_speed) # interpolate it, maybe this will help with the bouncy and jitteryness just a little bit
+	camera_smoothed_pitch = lerp_angle(camera_smoothed_pitch, target_pitch, t)
+
+	manual_cam_transform = manual_cam_transform.rotated_local(object.global_basis.x.normalized(), camera_smoothed_pitch)
+
+	object.global_transform = global_transform * manual_cam_transform * object.transform
+	
 func add_debug_info(info:String) -> void:
 	if debug_enabled:
 		debug_label.text += info + "\n"
@@ -347,7 +366,7 @@ func process_rotations(delta: float) -> void:
 				
 				camera.global_transform = global_transform * manual_cam_transform * camera.transform
 			
-			tilt_to_normal(camera, delta, 3.0, 20.0, -1.5)
+			tilt_camera_normal(camera, delta, 2.0, 20.0, -1.5)
 			
 			tilt_to_normal(model_default, delta, 6.0, 20.0, -2.5)
 
