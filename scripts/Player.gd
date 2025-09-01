@@ -18,6 +18,7 @@ extends CharacterBody3D
 @onready var audio_player: AudioStreamPlayer3D = $AudioPlayer
 
 # Sounds
+@export_group("Sound Effects", "sfx_")
 @export var sfx_jump: AudioStream
 @export var sfx_roll: AudioStream
 @export var sfx_charge: AudioStream
@@ -484,8 +485,6 @@ func _physics_process(delta: float) -> void:
 		input.y
 	)
 	
-	
-		
 	var cam_input_dir: Vector3 = (camera.global_basis * input_3).normalized()
 	var player_input_dir: Vector3 = (model_default.global_basis * input_3).normalized()
 	
