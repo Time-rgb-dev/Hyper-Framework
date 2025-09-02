@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Hyper Framework"
 config/description="A 3D Sonic framework aiming to be classic-accurate"
-run/main_scene="uid://c6jtj12pxnykp"
+run/main_scene="uid://cdird55ugvo7g"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 boot_splash/bg_color=Color(0, 0, 0, 1)
 boot_splash/fullsize=false
@@ -158,8 +158,7 @@ rendering/description="A 3D Sonic framework aiming to be classic-accurates"
 
 [rendering]
 
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method.web="forward_plus"
 textures/vram_compression/import_etc2_astc=true
 driver/depth_prepass/enable=false
 environment/defaults/default_clear_color=Color(0, 0.29689, 0.573042, 1)
