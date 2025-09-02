@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cqdkfcd54jek1"
-path.s3tc="res://.godot/imported/sonicspeedtrail1.png-c0a88eaa64b29893ecf1b7c97bbdd45d.s3tc.ctex"
-path.etc2="res://.godot/imported/sonicspeedtrail1.png-c0a88eaa64b29893ecf1b7c97bbdd45d.etc2.ctex"
+path.s3tc="res://.godot/imported/sonicspeedtrail1.png-92c52acfef9659e1d8e7518be9377817.s3tc.ctex"
+path.etc2="res://.godot/imported/sonicspeedtrail1.png-92c52acfef9659e1d8e7518be9377817.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -12,8 +12,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/objects/Player/sonicspeedtrail1.png"
-dest_files=["res://.godot/imported/sonicspeedtrail1.png-c0a88eaa64b29893ecf1b7c97bbdd45d.s3tc.ctex", "res://.godot/imported/sonicspeedtrail1.png-c0a88eaa64b29893ecf1b7c97bbdd45d.etc2.ctex"]
+source_file="res://Assets/objects/Player/sonicspeedtrail1.png"
+dest_files=["res://.godot/imported/sonicspeedtrail1.png-92c52acfef9659e1d8e7518be9377817.s3tc.ctex", "res://.godot/imported/sonicspeedtrail1.png-92c52acfef9659e1d8e7518be9377817.etc2.ctex"]
 
 [params]
 
