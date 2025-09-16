@@ -1,0 +1,91 @@
+[gd_scene load_steps=5 format=3 uid="uid://bye20d2dnbkdb"]
+
+[ext_resource type="Material" uid="uid://c7l701p1rbv7g" path="res://assets/objects/TestScene/bridge.tres" id="2_mlfwq"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_eqe40"]
+size = Vector3(30, 15, 2)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_eqe40"]
+top_radius = 1.5
+bottom_radius = 1.5
+height = 15.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3kuri"]
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.56, 0.219147, 0.0952, 1)
+
+[node name="Bridge" type="Node3D"]
+
+[node name="RigidBody3D" type="RigidBody3D" parent="."]
+axis_lock_linear_x = true
+axis_lock_linear_y = true
+axis_lock_linear_z = true
+mass = 0.001
+gravity_scale = 0.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RigidBody3D"]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, -13.4788, 0.0467025, 0)
+shape = SubResource("BoxShape3D_eqe40")
+debug_color = Color(1, 0, 0, 1)
+
+[node name="Logs" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, -9, 0, 0)
+
+[node name="Log" type="MeshInstance3D" parent="Logs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 0, 0)
+mesh = SubResource("CylinderMesh_eqe40")
+skeleton = NodePath("../..")
+surface_material_override/0 = SubResource("StandardMaterial3D_3kuri")
+
+[node name="Log2" type="MeshInstance3D" parent="Logs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, 0)
+mesh = SubResource("CylinderMesh_eqe40")
+skeleton = NodePath("../..")
+surface_material_override/0 = ExtResource("2_mlfwq")
+
+[node name="Log3" type="MeshInstance3D" parent="Logs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
+mesh = SubResource("CylinderMesh_eqe40")
+skeleton = NodePath("../..")
+surface_material_override/0 = ExtResource("2_mlfwq")
+
+[node name="Log4" type="MeshInstance3D" parent="Logs"]
+mesh = SubResource("CylinderMesh_eqe40")
+skeleton = NodePath("../..")
+surface_material_override/0 = ExtResource("2_mlfwq")
+
+[node name="Log5" type="MeshInstance3D" parent="Logs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
+mesh = SubResource("CylinderMesh_eqe40")
+skeleton = NodePath("../..")
+surface_material_override/0 = ExtResource("2_mlfwq")
+
+[node name="Log6" type="MeshInstance3D" parent="Logs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, 0)
+mesh = SubResource("CylinderMesh_eqe40")
+skeleton = NodePath("../..")
+surface_material_override/0 = ExtResource("2_mlfwq")
+
+[node name="Log7" type="MeshInstance3D" parent="Logs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0, 0)
+mesh = SubResource("CylinderMesh_eqe40")
+skeleton = NodePath("../..")
+surface_material_override/0 = ExtResource("2_mlfwq")
+
+[node name="Log8" type="MeshInstance3D" parent="Logs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0, 0)
+mesh = SubResource("CylinderMesh_eqe40")
+skeleton = NodePath("../..")
+surface_material_override/0 = ExtResource("2_mlfwq")
+
+[node name="Log9" type="MeshInstance3D" parent="Logs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 0, 0)
+mesh = SubResource("CylinderMesh_eqe40")
+skeleton = NodePath("../..")
+surface_material_override/0 = ExtResource("2_mlfwq")
+
+[node name="Log10" type="MeshInstance3D" parent="Logs"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, 0)
+mesh = SubResource("CylinderMesh_eqe40")
+skeleton = NodePath("../..")
+surface_material_override/0 = ExtResource("2_mlfwq")

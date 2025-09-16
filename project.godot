@@ -155,6 +155,7 @@ gdshell_toggle_ui={
 [internationalization]
 
 rendering/description="A 3D Sonic framework aiming to be classic-accurates"
+rendering/main_scene="uid://cdird55ugvo7g"
 
 [rendering]
 
